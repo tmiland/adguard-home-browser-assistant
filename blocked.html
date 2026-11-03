@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#0c0c0f">
+    <title>Oops, Site blocked</title>
+    <link rel="stylesheet" href="blocked.css">
+</head>
+<body>
+    <div class="page">
+        <header class="brandbar">
+            <div class="brand">
+                <svg class="shield" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 2.2 4.5 5.4v5.8c0 4.8 3.2 9.2 7.5 10.6 4.3-1.4 7.5-5.8 7.5-10.6V5.4L12 2.2Z" fill="currentColor"/>
+                    <path d="m8.4 11.7 2.5 2.5 4.7-5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>AdGuard Home</span>
+            </div>
+            <span class="eyebrow">DNS filtering</span>
+        </header>
+
+        <main class="card">
+            <p class="eyebrow">Site blocked</p>
+            <h1>Oops, Site blocked</h1>
+            <p class="domain" id="site">—</p>
+            <p class="lead">This site is blocked by AdGuard Home's content filtering. It may contain content that is harmful, illegal, or malicious.</p>
+
+            <div class="meta" id="meta">
+                <div class="metarow"><span>Client</span><b id="client">unknown</b></div>
+                <div class="metarow" id="reasonRow" hidden><span>Reason</span><b id="reason"></b></div>
+                <div class="metarow" id="ruleRow" hidden><span>Rule</span><code id="rule"></code></div>
+            </div>
+
+            <div class="actions">
+                <button class="button button-primary" id="unblockAll" type="button">Unblock</button>
+                <button class="button button-secondary" id="unblockClient" type="button">Unblock for this client only</button>
+                <button class="button button-ghost" id="goBack" type="button">Go back</button>
+            </div>
+
+            <p class="status" id="status" role="status" aria-live="polite"></p>
+
+            <p class="note">“Unblock” allows this hostname and its subdomains for every device using this AdGuard. “Unblock for this client only” applies only to <b id="noteClient">this client</b>; other devices stay blocked.</p>
+        </main>
+
+        <footer class="footer">
+            <span>Blocked by AdGuard Home</span>
+            <span class="dot">·</span>
+            <a id="adminLink" href="http://192.168.1.1:8088" target="_blank" rel="noopener noreferrer">Admin settings</a>
+            <span class="dot">·</span>
+            <span id="datetime"></span>
+        </footer>
+    </div>
+    <script src="blocked.js"></script>
+</body>
+</html>

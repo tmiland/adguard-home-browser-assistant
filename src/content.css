@@ -1,0 +1,167 @@
+/* AGQuery Unblock — injected into the AdGuard Home web UI.
+ * All selectors are scoped with the `aqu-` prefix to avoid clashing with AGH. */
+
+#aqu-widget {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 2147483000;
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    color: #333;
+    box-sizing: border-box;
+}
+
+[data-theme='dark'] #aqu-widget {
+    background: #1e232b;
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #e6ecf1;
+}
+
+#aqu-widget .aqu-widget__form {
+    display: flex;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+}
+
+#aqu-widget .aqu-widget__form input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+    font-size: 13px;
+    background: #fff;
+    color: #333;
+    box-sizing: border-box;
+}
+
+[data-theme='dark'] #aqu-widget .aqu-widget__form input {
+    background: #101318;
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #e6ecf1;
+}
+
+#aqu-widget .aqu-widget__status {
+    font-size: 12px;
+    line-height: 1.4;
+    color: #777;
+    word-wrap: break-word;
+}
+
+/* The widget's submit button is a normal flow child, not an absolute overlay. */
+#aqu-widget .aqu-unblock-btn {
+    position: static;
+    transform: none;
+    flex-shrink: 0;
+}
+
+[data-theme='dark'] #aqu-widget .aqu-widget__status {
+    color: #a9b4c0;
+}
+
+/* Per-row Unblock button (absolute so the flex row layout is untouched). */
+.aqu-unblock-btn {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    z-index: 10;
+    padding: 4px 10px;
+    border: 0;
+    border-radius: 4px;
+    background: #467fcf;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.2;
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
+.aqu-unblock-btn:hover {
+    background: #3a6fba;
+}
+
+.aqu-unblock-btn:disabled {
+    background: #8aaede;
+    cursor: default;
+}
+
+.aqu-unblock-btn--ok {
+    background: #5eba00;
+}
+
+.aqu-unblock-btn--fail {
+    background: #cd201f;
+}
+
+[data-theme='dark'] .aqu-unblock-btn {
+    background: #2a79d0;
+    color: #fff;
+}
+
+[data-theme='dark'] .aqu-unblock-btn:disabled {
+    background: #3a5374;
+}
+
+[data-theme='dark'] .aqu-unblock-btn--ok {
+    background: #3d8b1d;
+}
+
+[data-theme='dark'] .aqu-unblock-btn--fail {
+    background: #a51f1e;
+}
+
+/* Status toast. */
+.aqu-toast {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 2147483001;
+    max-width: 420px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #fff;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+    word-wrap: break-word;
+    box-sizing: border-box;
+}
+
+.aqu-toast--running {
+    background: #467fcf;
+}
+
+.aqu-toast--success {
+    background: #5eba00;
+}
+
+.aqu-toast--error {
+    background: #cd201f;
+}
+
+[data-theme='dark'] .aqu-toast--running {
+    background: #2a79d0;
+}
+
+[data-theme='dark'] .aqu-toast--success {
+    background: #3d8b1d;
+}
+
+[data-theme='dark'] .aqu-toast--error {
+    background: #a51f1e;
+}

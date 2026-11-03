@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>AGQuery Unblock — Settings</title>
+    <link rel="stylesheet" href="blocked.css">
+    <link rel="stylesheet" href="options.css">
+</head>
+<body>
+    <div class="page">
+        <header class="brandbar">
+            <div class="brand">
+                <svg class="shield" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 2.2 4.5 5.4v5.8c0 4.8 3.2 9.2 7.5 10.6 4.3-1.4 7.5-5.8 7.5-10.6V5.4L12 2.2Z" fill="currentColor"/>
+                    <path d="m8.4 11.7 2.5 2.5 4.7-5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>AGQuery Unblock</span>
+            </div>
+            <span class="eyebrow">Settings</span>
+        </header>
+
+        <main class="card">
+            <p class="eyebrow">Automatic block page</p>
+            <h1 class="options-title">Settings</h1>
+            <p class="lead">When an HTTPS site is blocked by AdGuard Home, the extension catches the navigation error, asks AGH whether the domain is filtered, and shows an Unblock page. It reuses your existing logged-in AdGuard Home session — no password is stored here.</p>
+
+            <form id="settingsForm" class="form">
+                <label class="field">
+                    <span>AdGuard Home URL</span>
+                    <input id="aghUrl" type="url" required placeholder="http://192.168.1.1:8088" autocomplete="off" spellcheck="false">
+                    <small>The web UI origin, e.g. <code>http://192.168.1.1:8088</code>.</small>
+                </label>
+
+                <label class="field">
+                    <span>This client (optional)</span>
+                    <input id="clientName" type="text" placeholder="auto-detect from the query log" autocomplete="off" spellcheck="false">
+                    <small>Client IP or AGH client name used by “Unblock for this client only”. Leave empty to use the client from the latest query-log entry.</small>
+                </label>
+
+                <label class="check">
+                    <input id="autoBlockPage" type="checkbox">
+                    <span>Show the block page automatically on failed navigations</span>
+                </label>
+
+                <div class="actions">
+                    <button class="button button-primary" type="submit">Save</button>
+                    <button class="button button-secondary" id="testBtn" type="button">Test AGH session</button>
+                    <a class="button button-ghost" id="adminLink" href="http://192.168.1.1:8088" target="_blank" rel="noopener noreferrer">Open AdGuard Home</a>
+                </div>
+                <p class="status" id="status" role="status" aria-live="polite"></p>
+            </form>
+
+            <p class="note">The extension needs an AdGuard Home tab that is logged in. If none is open, it opens an inactive AGH tab for the API request and keeps it for later unblocks. If the session expired, log in there and try again.</p>
+        </main>
+
+        <footer class="footer">
+            <span>AGQuery Unblock 0.2.0</span>
+            <span class="dot">·</span>
+            <a href="https://github.com/tmiland/agquery-unblock" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </footer>
+    </div>
+    <script src="options.js"></script>
+</body>
+</html>

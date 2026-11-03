@@ -1,0 +1,75 @@
+.options-title {
+    font-size: clamp(28px, 4vw, 38px);
+    margin-top: 4px;
+}
+
+.form {
+    display: grid;
+    gap: 18px;
+    margin-top: 26px;
+}
+
+.field {
+    display: grid;
+    gap: 6px;
+    font-size: 13.5px;
+}
+
+.field > span {
+    font-weight: 650;
+}
+
+.field input[type="url"],
+.field input[type="text"] {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--bg2);
+    color: var(--ink);
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+}
+
+.field input:focus {
+    outline: 2px solid color-mix(in srgb, var(--green) 55%, transparent);
+    outline-offset: 1px;
+    border-color: var(--green);
+}
+
+.field small {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.field code {
+    font: 11.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+}
+
+.check {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    color: var(--ink);
+    font-size: 13.5px;
+    line-height: 1.45;
+    cursor: pointer;
+}
+
+.check input {
+    margin: 2px 0 0;
+    accent-color: var(--green);
+}
+
+.actions .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+
+.actions {
+    margin-top: 2px;
+}
