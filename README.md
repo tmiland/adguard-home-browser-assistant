@@ -1,114 +1,190 @@
 # AdGuard Home Browser Assistant
 
+[![Version](https://img.shields.io/github/manifest-json/v/tmiland/adguard-home-browser-assistant?filename=manifest.json&label=version)](https://github.com/tmiland/adguard-home-browser-assistant)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Firefox 142+](https://img.shields.io/badge/Firefox-142%2B-orange?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue)](https://extensionworkshop.com/documentation/develop/manifest-v3-migration-guide/)
 [![Sponsor @tmiland](https://img.shields.io/badge/Sponsor-%40tmiland-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/tmiland)
 
 An unofficial Firefox companion for **AdGuard Home (AGH)**: see the filtering
-state of the current tab, block or unblock the current site (for everyone or
-just this client), pause protection, view AGH stats, and get an automatic HTTPS
-block page — using your existing logged-in AGH session.
+state of the current tab, block or unblock the current site for everyone or just
+this client, pause protection, view AGH stats, hide page elements, and get a
+useful block page when an HTTPS navigation fails — using your existing logged-in
+AGH session.
 
 It does not filter traffic itself. AGH does the DNS filtering; this extension is
 the browser-side control surface.
+
+> Not affiliated with AdGuard. AdGuard Home is a separate open-source project.
+
+**Status:** v1.0.0 · Firefox MV3 · AMO listing pending review.
+
+## Screenshots
+
+| Toolbar popup | Automatic block page |
+| --- | --- |
+| <img src="docs/screenshots/popup.png" alt="AdGuard Home Browser Assistant popup showing a blocked site, unblock actions, element hiding, protection, stats, and a Donate link" width="330"> | <img src="docs/screenshots/block-page.png" alt="Automatic block page with Unblock, client-only, and temporary unblock options" width="520"> |
+
+<p align="center">
+  <img src="docs/screenshots/agh-widget.png" alt="Quick unblock widget on the AdGuard Home web interface" width="330">
+  <br>
+  <sub>Quick unblock widget on the AdGuard Home web interface.</sub>
+</p>
 
 ## Features
 
 ### Toolbar popup
 
-- Current tab status from AGH `check_host` (Blocked / Allowed), with the applied
-  rule/reason and the client.
+- Current tab status from AGH `check_host` — **Blocked** or **Allowed** — with
+  the applied rule/reason and the client.
 - **Block** or **Unblock** the current hostname for all devices:
   `||host^$important` / `@@||host^$important`.
 - **Block / Unblock for this client only**:
   `||host^$client='<client>'` / `@@||host^$client='<client>'`.
   The client comes from the latest query-log entry for the host; set one in
   Settings if auto-detection is wrong.
-- **Protection**: on/paused, pause for 30s / 1m / 5m / 15m, resume. This calls
-  AGH's `/control/protection` with a duration in milliseconds.
+- **Temporary unblocks** with a live countdown and **Cancel**.
+- **Protection**: on/paused, pause for 30s / 1m / 5m / 15m, resume.
 - **Stats**: total queries and blocked count from `/control/stats`.
-- **Temporary unblocks**: active temporary rules, each with a live countdown
-  and a **Cancel** button.
-- Links to the AGH query log, AGH home, and Settings.
+- Links to the AGH query log, AGH home, Settings, and **Donate**.
 
 ### Automatic HTTPS block page
 
 Top-level navigation errors are caught with `webNavigation.onErrorOccurred`.
 The extension confirms with AGH `check_host` (and the latest query-log entry for
 CNAME/IP/cached cases), then replaces the browser error with `blocked.html`.
-No CA, no TLS interception, no VIP/NAT. The block page offers **Unblock**,
-**Unblock for this client only**, and **Temporarily unblock** (30 seconds, 1
-minute, 5 minutes, or 15 minutes). It polls through AGH's asynchronous ~6 s
-filter rebuild. The temporary rule is removed by the background after the
-chosen duration; if the browser closes first, cleanup resumes on the next
-extension start.
+
+No CA, no TLS interception, no VIP/NAT. The block page offers:
+
+- **Unblock** for every device;
+- **Unblock for this client only**;
+- **Temporarily unblock** for 30 seconds, 1 minute, 5 minutes, or 15 minutes.
+
+It polls through AGH's asynchronous filter rebuild (~6 s on a typical home
+server). Temporary rules are removed by the background after the chosen
+duration; if the browser closes first, cleanup resumes on the next extension
+start.
 
 ### Element hiding
 
-AdGuard Home accepts cosmetic rules such as `example.com##.ad-banner` and
-stores them in its user rules, but DNS filtering cannot inject CSS. The
-assistant reads those rules back and applies the matching CSS in Firefox, so
-the rule is visible and editable in AGH while the browser does the hiding.
+AGH accepts cosmetic rules such as `example.com##.ad-banner` and stores them in
+its user rules, but DNS filtering cannot inject CSS. The assistant reads those
+rules back and applies the matching CSS in Firefox, so the rule is visible and
+editable in AGH while the browser does the hiding.
 
-- Toolbar **Pick element to hide** (or right-click → **Hide element with
-  AdGuard Home Assistant**) starts a picker: hover to highlight, click the
-  element, edit the generated selector if needed, then **Hide**. It hides only
-  the selected element by default; tick **Hide all matching elements** to use a
-  broader selector.
-- Picked rules are saved to AGH user rules by default (`example.com##.ad-banner`).
-  If the AGH session is unavailable, the rule is saved locally instead. Rules
-  saved to AGH appear under **Rules from AdGuard Home** in Settings, not in the
-  local rules box.
-- Settings lists AGH cosmetic rules with **Remove** buttons and **Refresh**;
-  use Refresh after editing rules directly in the AGH UI. Removing a rule
-  through the assistant also refreshes open tabs.
+- Toolbar **Pick element to hide** or right-click → **Hide element with AdGuard
+  Home Assistant** starts a picker: hover to highlight, click the element, edit
+  the generated selector if needed, then **Hide**.
+- It hides only the selected element by default; tick **Hide all matching
+  elements** to use a broader selector.
+- Picked rules are saved to AGH user rules by default. If the AGH session is
+  unavailable, the rule is saved locally instead. Rules saved to AGH appear under
+  **Rules from AdGuard Home** in Settings, not in the local rules box.
+- Settings lists AGH cosmetic rules with **Remove** buttons and **Refresh**.
+  Removing a rule through the assistant also refreshes open tabs.
 - Global CSS-injection rules (`example.com#$#body { ... }`) and exceptions
-  (`#@#`, `#@$#`) also work. Native CSS selectors (including `:has()`) are
-  applied directly. A small extended-CSS engine also supports `:remove()`,
-  `:style()`, `:has-text()`, `:upward()`, `:matches-css()` and
-  `:not(:has-text(...))`; other extended selectors are skipped.
-- Settings holds local rules for this browser and a switch to stop saving
-  picked rules to AGH.
+  (`#@#`, `#@$#`) work.
+- Native CSS selectors (including `:has()`) are applied directly. A small
+  extended-CSS engine supports `:remove()`, `:style()`, `:has-text()`,
+  `:upward()`, `:matches-css()` and `:not(:has-text(...))`; other extended
+  selectors are skipped.
 
 AGH user rules are read through the same logged-in session; local rules are
 stored with `browser.storage.local`. Scriptlet/JS rules (`#%#`, `#@%#`) are
 deliberately not executed.
 
-### Query-log buttons
+### Query-log buttons and Quick unblock
 
-The query-log **Unblock** buttons are still available: each blocked row gets an
-**Unblock** button, and there is a floating **Quick unblock** widget. It is branded
-**AdGuard Home Browser Assistant** and can be collapsed (the state is
-remembered). It accepts a URL or domain, normalizes it, adds the allowlist rule,
-clears AGH's cache, and polls `check_host` until the rebuild finishes.
+- Blocked query-log rows get an **Unblock** button.
+- A floating **Quick unblock** widget is branded **AdGuard Home Browser
+  Assistant** and can be collapsed; the state is remembered.
+- It accepts a URL or domain, normalizes it, adds the allowlist rule, clears
+  AGH's cache, and polls `check_host` until the rebuild finishes.
 
-## Existing AGH session
+### Dynamic AGH UI integration
 
-No password is stored. The add-on reuses the `agh_session` cookie:
+There is no hardcoded AGH host. After you configure your AGH URL, the extension
+injects its AGH UI helper only on that origin. This also means it works with a
+custom hostname, reverse proxy, or port.
 
-- a direct extension-origin request is tried first;
-- if SameSite/CORS prevents that, it uses a same-origin fetch inside an AGH UI
-  tab (`src/api-bridge.js`), opening an inactive tab if necessary.
+## Install
 
-There is no universal AGH URL. Set yours in **Settings**; the examples use
-`https://adguard.example.com` or `http://192.168.1.1:3000`. The query-log
-buttons and Quick unblock widget are injected only on the origin you configure;
-no AGH host is hardcoded.
-
-## Install (temporary)
+### Temporary install
 
 1. Make sure your AGH UI is reachable and logged in (for example
    `https://adguard.example.com`).
 2. Firefox → `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…**
-3. Select `manifest.json` from this repo.
+3. Select `manifest.json` from this repository.
 4. Open **Settings** and enter your AGH URL.
 5. Open the toolbar icon. The popup shows the current site, protection,
-   element-hiding state and stats. Use Settings to set the client or disable
-   the automatic block page; use **Pick element to hide** or the page context
-   menu for cosmetic rules.
+   element-hiding state, and stats.
 
-For permanent installation, sign it yourself or publish through AMO
-(`web-ext build` and `web-ext sign`). AMO-listed builds receive updates through
-AMO automatically; a custom `update_url` is only for self-distribution and is
-not set here.
+### AMO
+
+The public AMO listing is being prepared. Once approved, install it from:
+
+`https://addons.mozilla.org/firefox/addon/adguard-home-browser-assistant/`
+
+For a permanent self-hosted install, sign the XPI yourself or publish through
+AMO:
+
+```sh
+web-ext build
+web-ext sign
+```
+
+AMO-listed builds receive updates through AMO automatically. The manifest
+intentionally has **no `update_url`**; that key is only for self-distributed
+extensions and would override AMO's update channel.
+
+## Setup
+
+1. Open **Settings** and enter the AGH web UI origin, for example
+   `https://adguard.example.com` or `http://192.168.1.1:3000`.
+2. Log in to that AGH UI in the same Firefox profile.
+3. The extension reuses the `agh_session` cookie. No password is stored.
+4. Optionally set a client IP/name for “this client only” actions.
+
+The default client detection uses the latest query-log entry for the hostname.
+If that is wrong, set the client explicitly in Settings.
+
+## How it works
+
+```text
+Firefox extension
+  ├─ popup / options / block page
+  ├─ background MV3 event page
+  │    ├─ AGH API via existing agh_session cookie
+  │    ├─ direct fetch, then same-origin AGH-tab bridge
+  │    ├─ temporary unblock cleanup via browser.alarms
+  │    └─ dynamic AGH UI script injection
+  └─ cosmetic content script
+       ├─ normal CSS rules
+       ├─ extended-CSS runtime
+       └─ element picker
+```
+
+- **Auth:** a direct extension-origin request is tried first. If SameSite/CORS
+  prevents it, a same-origin fetch runs inside an AGH UI tab
+  (`src/api-bridge.js`).
+- **Block page:** `webNavigation.onErrorOccurred` checks AGH before replacing
+  the error page, so ordinary network failures are not misreported as blocks.
+- **Temporary unblocks:** stored in `browser.storage.local`; cleanup is driven
+  by `browser.alarms` so it survives MV3 event-page suspension.
+- **Element hiding:** CSS is injected at user origin with
+  `scripting.insertCSS`, so page CSP cannot block it.
+
+## Permissions and privacy
+
+- No credentials are stored.
+- No telemetry, analytics, or remote logging.
+- The AGH session cookie is used only for AGH API calls.
+- Local rules, settings, and pending temporary unblocks stay in
+  `browser.storage.local`.
+- `<all_urls>` is required to detect failed navigations, apply element-hiding
+  rules, and inject the AGH helper on the origin you configure.
+- `tabs`, `webNavigation`, `scripting`, `alarms`, `contextMenus`, and `storage`
+  support those features.
 
 ## Rule syntax
 
@@ -117,65 +193,105 @@ AGH uses Adblock-style rules
 The assistant uses:
 
 - `||example.com^` — the domain and all subdomains.
-- `@@||example.com^$important` — an allowlist exception for all clients.
-- `@@||example.com^$client='192.168.1.2'` — the same exception for one client.
-- `||example.com^$important` — a block rule for the site.
+- `@@||example.com^$important` — allowlist exception for all clients.
+- `@@||example.com^$client='192.0.2.10'` — exception for one client.
+- `||example.com^$important` — block rule for the site.
 - `example.com##.ad-banner` — hide matching elements for the site and its
   subdomains.
-- `example.com#@#.ad-banner` — cancel that hide rule for the site.
+- `example.com#@#.ad-banner` — cancel that hide rule.
 - `example.com#$#body { overflow: auto !important; }` — inject a style rule.
 - `example.com##.ad:has-text(/sponsor/):remove()` — extended text match.
 - `example.com##.ad:upward(.feed)` — hide the matching ancestor element.
 - `example.com##.ad:style(border: 1px solid red !important)` — extended style.
 - `example.com##.ad:matches-css(display: none):remove()` — computed-style match.
 
-When a site is blocked by a **parent-domain** rule (e.g. `||memfault.com^` blocks
-`chunks.memfault.com`), the assistant unblocks the **rule’s domain**
-(`@@||memfault.com^$important`), not just the current hostname, so every
-subdomain of that domain works.
+When a site is blocked by a **parent-domain** rule (for example
+`||memfault.com^` blocks `chunks.memfault.com`), the assistant unblocks the
+**rule's domain** (`@@||memfault.com^$important`), not just the current
+hostname, so every subdomain of that domain works.
+
+## Development
+
+```sh
+# Unit tests
+node --test test/
+
+# Firefox validation
+web-ext lint
+
+# Package
+web-ext build
+```
+
+Main files:
+
+- `src/background.js` — MV3 event page, AGH API, block page, unblocking,
+  protection, stats, alarms, dynamic injection.
+- `src/rule-utils.js` — pure allow/block rule builder and duration labels.
+- `src/cosmetic-rules.js` — Adblock cosmetic parser/matcher, including extended
+  selectors.
+- `src/cosmetic.js` — element hiding, extended-CSS runtime, picker.
+- `src/content.js` — query-log buttons and Quick unblock widget.
+- `src/api-bridge.js` — same-origin AGH API bridge.
+- `popup.html|css|js` — toolbar popup.
+- `blocked.html|css|js` — automatic block page.
+- `options.html|css|js` — settings.
+- `test/` — parser and rule-builder tests.
 
 ## Limitations
 
-- Firefox only (Manifest v3). Per-browser, not network-wide; phones/TVs/IoT do
-  not get the block page or element hiding.
-- Automatic pages only for top-level navigations, not blocked subresources.
-- The AGH session must be valid; if it expires, open AGH, log in and retry.
-- The browser can hold a `0.0.0.0` answer for up to `blocked_response_ttl`
-  (10 s); if a redirect still fails, wait and reload.
-- Temporary unblocks are timer-based, not AGH-native. The rule is removed by the
-  extension after the duration; if the browser is closed, cleanup runs when it
-  starts again. If the AGH session expires at that moment, removal is retried.
-- Element hiding applies only in Firefox with this assistant. AGH still stores
-  the cosmetic rules, but its DNS engine does not inject CSS into pages.
+- Firefox only. Per-browser, not network-wide; phones/TVs/IoT do not get the
+  block page or element hiding.
+- Automatic pages apply only to top-level navigations, not blocked
+  subresources.
+- The AGH session must be valid; if it expires, open AGH, log in, and retry.
+- Browsers can hold a blocked `0.0.0.0` answer for up to
+  `blocked_response_ttl` (10 s); if a redirect still fails, wait and reload.
+- Temporary unblocks are timer/alarm-based, not AGH-native. If the browser is
+  closed, cleanup runs on the next extension start; if the AGH session is
+  unavailable at expiry, removal is retried.
+- Element hiding applies only in Firefox with this assistant. AGH stores the
+  cosmetic rules, but its DNS engine does not inject CSS.
 - Cosmetic rules are read from AGH **user rules** and the local rules box; rules
-  inside subscribed filter lists are not imported. Scriptlet/JS rules are not
-  executed. The extended-CSS engine covers the common selectors above, but not
-  every AdGuard extended selector (for example `:matches-css-before` is skipped).
-- On pages with a strict Content-Security-Policy, the assistant injects CSS at
-  user origin (`scripting.insertCSS`) so page CSP does not block the rules. The
-  picker overlay uses a separate shadow-root UI.
+  inside subscribed filter lists are not imported.
+- The extended-CSS engine covers common selectors but not every AdGuard extended
+  selector (for example `:matches-css-before` is skipped).
+- On pages with a strict Content-Security-Policy, CSS is injected at user origin
+  so page CSP does not block the rules. The picker overlay uses a separate
+  shadow-root UI.
 
-## Files
+## Troubleshooting
 
-- `src/background.js` — navigation errors, AGH API,
-  block/unblock/protection/stats, cosmetic cache.
-- `src/rule-utils.js` — pure allow/block rule builder and duration labels (tested).
-- `src/cosmetic-rules.js` — Adblock cosmetic-rule parser/matcher, including
-  extended selectors.
-- `src/cosmetic.js` — element hiding, extended-CSS runtime, picker content script.
-- `src/api-bridge.js` — same-origin AGH API bridge in an AGH tab.
-- `src/content.js` — query-log buttons and Quick unblock widget.
-- `popup.html|css|js` — Browser Assistant toolbar popup.
-- `blocked.html|css|js` — automatic block page.
-- `options.html|css|js` — settings.
-- `test/cosmetic-rules.test.js` — cosmetic parser/matcher tests.
-- `test/rule-utils.test.js` — allow/block rule and duration tests.
-- Run all tests with `node --test test/`.
+**The popup says “Setup”**
+: Open Settings and enter your AGH URL, then log in to that AGH UI.
+
+**The AGH widget or query-log buttons are missing**
+: The helper is injected only on the configured AGH origin. Reload the AGH tab
+  after saving the URL.
+
+**Unblock says the session expired**
+: Log in to AGH in the same Firefox profile, then retry.
+
+**The site still looks blocked after Unblock**
+: AGH rebuilds filters asynchronously (~6 s), and clients can cache the blocked
+  answer for up to 10 s. Wait, reload, or flush the client DNS cache.
+
+**Temporary unblock did not disappear**
+: It retries every 5 minutes if AGH is unreachable. Open the popup to see the
+  pending entry and use **Cancel**, or check that the AGH session is valid.
+
+## Contributing
+
+Issues and pull requests are welcome. Please keep changes focused, run the
+tests and `web-ext lint`, and describe the AGH/Firefox versions you tested.
 
 ## Support
 
-If this extension saves you time, you can support its development via
+If this extension saves you time, you can support development via
 [GitHub Sponsors](https://github.com/sponsors/tmiland).
+
+Bug reports and feature requests:
+[GitHub Issues](https://github.com/tmiland/adguard-home-browser-assistant/issues).
 
 ## AI assistance
 
