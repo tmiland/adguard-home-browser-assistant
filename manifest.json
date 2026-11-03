@@ -29,7 +29,9 @@
       "matches": [
         "http://192.168.1.1/*",
         "http://192.168.1.1:8088/*",
-        "https://192.168.1.1:1443/*"
+        "https://192.168.1.1:1443/*",
+        "http://adguard.home.tmiland.com/*",
+        "https://adguard.home.tmiland.com/*"
       ],
       "js": [
         "src/content.js",

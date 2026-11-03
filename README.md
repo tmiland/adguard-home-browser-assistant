@@ -45,7 +45,7 @@ If the session expired, the block page offers a link to AGH; log in and retry.
 
 Open the add-on settings (toolbar button or Add-ons Manager):
 
-- **AdGuard Home URL** — default `http://192.168.1.1:8088`.
+- **AdGuard Home URL** — default `https://adguard.home.tmiland.com`.
 - **This client** — optional client IP/name for “Unblock for this client only”.
   Leave empty to auto-detect from the query log.
 - **Show the block page automatically** — on by default.
@@ -73,7 +73,7 @@ through the asynchronous rebuild instead of checking once.
 ## Install (temporary)
 
 1. Ensure the AGH UI is reachable and logged in:
-   `http://192.168.1.1:8088` (or `https://192.168.1.1:1443`).
+   `https://adguard.home.tmiland.com` (or `https://192.168.1.1:1443`).
 2. Firefox → `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…**
 3. Select `manifest.json`.
 4. Open the add-on settings and set the AGH URL/client if needed.

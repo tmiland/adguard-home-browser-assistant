@@ -14,7 +14,7 @@
     const status = $('status');
     const testBtn = $('testBtn');
 
-    const DEFAULT_AGH = 'http://192.168.1.1:8088';
+    const DEFAULT_AGH = 'https://adguard.home.tmiland.com';
 
     function setStatus(text, state) {
         status.textContent = text;
@@ -64,7 +64,7 @@
         }
         const url = normalizeAghUrl(aghUrl.value);
         if (!url) {
-            setStatus('Enter a valid AdGuard Home URL, e.g. http://192.168.1.1:8088.', 'error');
+            setStatus('Enter a valid AdGuard Home URL, e.g. https://adguard.home.tmiland.com.', 'error');
             aghUrl.focus();
             return;
         }

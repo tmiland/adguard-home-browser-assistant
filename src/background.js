@@ -1,6 +1,6 @@
 'use strict';
 
-const DEFAULT_AGH = 'http://192.168.1.1:8088';
+const DEFAULT_AGH = 'https://adguard.home.tmiland.com';
 const BLOCKED_PAGE = 'blocked.html';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -213,9 +213,15 @@ async function findBlockInfo(host) {
     let rule = '';
     let client = '';
 
-    if (check.ok && check.data && /^Filtered/.test(check.data.reason || '')) {
+    const checkReason = (check.ok && check.data && check.data.reason) || '';
+    if (checkReason === 'NotFilteredWhiteList') {
+        /* An explicit allowlist rule wins; do not let an older query-log
+           blocked entry resurrect the block page after Unblock. */
+        return { blocked: false, reason: '', rule: '', client: '' };
+    }
+    if (/^Filtered/.test(checkReason)) {
         blocked = true;
-        reason = check.data.reason || '';
+        reason = checkReason;
         rule = (check.data.rules && check.data.rules[0] && check.data.rules[0].text) || '';
     }
 
@@ -236,13 +242,20 @@ async function findBlockInfo(host) {
     }
     if (latest) {
         const recent = Date.now() - latest.t < 120000;
-        if (blocked) {
-            client = latest.client;
-        } else if (recent && /^Filtered/.test(latest.reason || '')) {
+        client = latest.client;
+        if (latest.client) {
+            const clientCheck = await aghApi(
+                '/control/filtering/check_host?name=' + encodeURIComponent(host) +
+                '&client=' + encodeURIComponent(latest.client),
+            );
+            if (clientCheck.ok && clientCheck.data && clientCheck.data.reason === 'NotFilteredWhiteList') {
+                return { blocked: false, reason: '', rule: '', client: latest.client };
+            }
+        }
+        if (!blocked && recent && /^Filtered/.test(latest.reason || '')) {
             blocked = true;
             reason = latest.reason;
             rule = latest.rule;
-            client = latest.client;
         }
     }
     return { blocked, reason, rule, client };
