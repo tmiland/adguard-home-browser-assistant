@@ -106,7 +106,9 @@ no AGH host is hardcoded.
    menu for cosmetic rules.
 
 For permanent installation, sign it yourself or publish through AMO
-(`web-ext build` and `web-ext sign`).
+(`web-ext build` and `web-ext sign`). AMO-listed builds receive updates through
+AMO automatically; a custom `update_url` is only for self-distribution and is
+not set here.
 
 ## Rule syntax
 
