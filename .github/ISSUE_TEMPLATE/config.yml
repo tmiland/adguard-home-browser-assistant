@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: AdGuard Home documentation
+    url: https://adguard.com/kb/
+    about: Setup, filtering rules, clients, and DNS configuration.
+  - name: AdGuard Home source and issues
+    url: https://github.com/AdguardTeam/AdGuardHome
+    about: Report bugs in AdGuard Home itself, not in this browser extension.
+  - name: Sponsor development
+    url: https://github.com/sponsors/tmiland
+    about: Support the Browser Assistant via GitHub Sponsors.

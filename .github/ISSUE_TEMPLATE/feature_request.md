@@ -1,20 +1,32 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
-title: ''
-labels: ''
-assignees: ''
-
+about: Suggest an improvement for the extension
+title: "[Feature]: "
+labels: ["enhancement"]
+assignees: ""
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Problem
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+What are you trying to do, and what is missing or awkward today?
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## Proposed solution
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+Describe the behavior or UI you would like.
+
+## Alternatives considered
+
+Any workarounds or other approaches you have tried.
+
+## Scope
+
+- Does this affect DNS filtering, the browser UI, or element hiding?
+- Does it need a new AdGuard Home API endpoint?
+- Should it work for all clients or only this browser?
+
+> AdGuard Home is DNS-level. Features that require TLS interception,
+> non-browser clients, or injecting into pages outside Firefox are out of scope.
+
+## Additional context
+
+Mockups, screenshots, links, or examples are welcome.

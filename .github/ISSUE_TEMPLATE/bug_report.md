@@ -1,38 +1,43 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
-assignees: ''
-
+about: Report a reproducible problem with the extension
+title: "[Bug]: "
+labels: ["bug"]
+assignees: ""
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## What happened?
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+A clear description of the problem and what you expected instead.
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Steps to reproduce
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+1.
+2.
+3.
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+## Environment
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+- Extension version (shown in Settings):
+- Firefox version:
+- AdGuard Home version:
+- AGH URL type (direct / reverse proxy / port):
+- Operating system:
+- Is the AGH UI logged in in this Firefox profile? (yes/no)
 
-**Additional context**
-Add any other context about the problem here.
+## What did you already try?
+
+- [ ] Reloaded the AGH tab
+- [ ] Reloaded the extension
+- [ ] Checked the browser console for `[AGH Assistant]` messages
+- [ ] Waited ~10 s after unblocking and reloaded
+- [ ] Flushed the client DNS cache
+
+## Logs and screenshots
+
+Paste relevant browser-console output and screenshots. Remove cookies, session
+tokens, passwords, and private client IPs before posting.
+
+## Additional context
+
+Anything else that helps reproduce the issue.
