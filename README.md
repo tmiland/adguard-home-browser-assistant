@@ -68,8 +68,10 @@ deliberately not executed.
 ### Query-log buttons
 
 The original query-log **Unblock** buttons remain: blocked rows get a green
-button and there is a floating unblock-by-domain widget. It adds the allowlist
-rule, clears AGH's cache, and polls `check_host` until the rebuild finishes.
+button and there is a floating **Quick unblock** widget. It is branded
+**AdGuard Home Browser Assistant**, can be collapsed (the state is remembered),
+accepts a URL or domain and normalizes it, and adds the allowlist rule, clears
+AGH's cache, and polls `check_host` until the rebuild finishes.
 
 ## Existing AGH session
 

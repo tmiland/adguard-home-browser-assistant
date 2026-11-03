@@ -962,7 +962,7 @@ async function handleNavigationError(details) {
 
     const host = hostFromUrl(details.url);
     if (!host) return;
-    console.debug('[AGQuery] navigation error', details.error, details.url);
+    console.debug('[AGH Assistant] navigation error', details.error, details.url);
     if (originOf(details.url) === originOf(cfg.aghUrl)) return;
 
     const key = details.tabId + ':' + host;
@@ -971,7 +971,7 @@ async function handleNavigationError(details) {
     lastHandled.set(key, now);
 
     const info = await findBlockInfo(host);
-    console.debug('[AGQuery] block check', host, info.blocked, info.reason, info.client);
+    console.debug('[AGH Assistant] block check', host, info.blocked, info.reason, info.client);
     if (!info.blocked) return;
 
     const params = new URLSearchParams({

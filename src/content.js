@@ -1,5 +1,5 @@
 /*
- * AGQuery Unblock — content script for the AdGuard Home web UI.
+ * AdGuard Home Browser Assistant — content script for the AdGuard Home web UI.
  *
  * Replicates the front-end "Unblock" action but adds:
  *   1. POST /control/cache_clear to flush AGH's DNS cache
@@ -29,7 +29,7 @@
 
     const isFilteredReason = (reason) => (reason || '').startsWith('Filtered');
 
-    const dbg = (msg) => console.log('[AGQuery]', msg);
+    const dbg = (msg) => console.log('[AGH Assistant]', msg);
 
     /* ------------------------------- API calls ------------------------------- */
 
@@ -71,11 +71,15 @@
 
     /* --------------------------- unblock workflow ---------------------------- */
 
-    async function runUnblock(domain, btn) {
+    async function runUnblock(domain, btn, onState) {
         const toast = new StatusToast();
+        const report = (kind, text) => {
+            toast.state(kind, text);
+            if (typeof onState === 'function') onState(kind, text);
+        };
         dbg(`unblocking ${domain}`);
         setButtonBusy(btn, true);
-        toast.state('running', `Adding allowlist rule for ${domain}`);
+        report('running', `Adding allowlist rule for ${domain}`);
 
         try {
             let status;
@@ -83,7 +87,7 @@
                 status = await apiGet('/control/filtering/status');
             } catch (e) {
                 if (e.message === 'session_expired') {
-                    toast.state('error', 'AGH session expired — log in and try again.');
+                    report('error', 'AGH session expired — log in and try again.');
                     setButtonBusy(btn, false);
                     return;
                 }
@@ -103,15 +107,15 @@
                 rules.push(unblock);
             }
 
-            toast.state('running', 'Saving custom filtering rules…');
+            report('running', 'Saving custom filtering rules…');
             dbg('set_rules', rules.length, 'rules');
             await apiSetRules(rules);
 
-            toast.state('running', 'Clearing AGH DNS cache…');
+            report('running', 'Clearing AGH DNS cache…');
             dbg('cache_clear');
             await apiClearCache();
 
-            toast.state('running', 'Verifying (AGH rebuilds filters asynchronously)…');
+            report('running', 'Verifying (AGH rebuilds filters asynchronously)…');
             let check = null;
             let reason = '';
             for (let attempt = 0; attempt < 20; attempt++) {
@@ -127,7 +131,7 @@
             if (isFilteredReason(reason)) {
                 setButtonUnblocked(btn, false);
                 const svc = check.service_name ? ` (${check.service_name})` : '';
-                toast.state(
+                report(
                     'error',
                     `${domain} is still blocked${svc} — reason: ${reason}. It may be covered by ` +
                         'a filter list or blocked service; add an allowlist entry in ' +
@@ -138,7 +142,7 @@
 
             setButtonUnblocked(btn, true);
             const ipInfo = ips.length ? ` now resolves to ${ips.join(', ')}` : '';
-            toast.state(
+            report(
                 'success',
                 `Unblocked ${domain}${ipInfo}. The AGH engine rebuild takes ~6 s; if the client still ` +
                     'shows it blocked, flush the client DNS cache (`ipconfig /flushdns` / ' +
@@ -148,7 +152,7 @@
         } catch (e) {
             dbg('unblock failed', e && e.message ? e.message : e);
             setButtonUnblocked(btn, false);
-            toast.state('error', `Failed to unblock ${domain}: ${e && e.message ? e.message : e}`);
+            report('error', `Failed to unblock ${domain}: ${e && e.message ? e.message : e}`);
         } finally {
             setButtonBusy(btn, false);
         }
@@ -224,7 +228,11 @@
             }
             e.preventDefault();
             e.stopPropagation();
-            runUnblock(btn.dataset.domain, btn);
+            runUnblock(
+                btn.dataset.domain,
+                btn,
+                btn.id === 'aqu-widget-submit' ? updateWidgetStatus : undefined,
+            );
         },
         true,
     );
@@ -253,7 +261,16 @@
         }
     }
 
+    function updateWidgetStatus(kind, text) {
+        const el = document.getElementById('aqu-widget-status');
+        if (!el) return;
+        el.dataset.state = kind;
+        el.textContent = kind === 'success' ? 'Unblocked.' : text;
+    }
+
     /* ------------------------------- floating widget ------------------------- */
+
+    const COLLAPSE_KEY = 'agh-assistant-widget-collapsed';
 
     function buildWidget() {
         if (document.getElementById('aqu-widget')) {
@@ -263,48 +280,124 @@
         wrap.id = 'aqu-widget';
         wrap.className = 'aqu-widget';
 
+        const head = document.createElement('div');
+        head.className = 'aqu-widget__head';
+
+        const brand = document.createElement('div');
+        brand.className = 'aqu-widget__brand';
+        const mark = document.createElement('span');
+        mark.className = 'aqu-widget__mark';
+        mark.textContent = 'A';
+        mark.setAttribute('aria-hidden', 'true');
+        const titles = document.createElement('div');
+        titles.className = 'aqu-widget__titles';
+        const title = document.createElement('div');
+        title.className = 'aqu-widget__title';
+        title.textContent = 'AdGuard Home Browser Assistant';
+        const sub = document.createElement('div');
+        sub.className = 'aqu-widget__sub';
+        sub.textContent = 'Quick unblock';
+        titles.append(title, sub);
+        brand.append(mark, titles);
+
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'aqu-widget__toggle';
+        toggle.setAttribute('aria-label', 'Minimize quick unblock');
+        toggle.title = 'Minimize';
+        head.append(brand, toggle);
+
+        const body = document.createElement('div');
+        body.className = 'aqu-widget__body';
+
         const form = document.createElement('form');
         form.className = 'aqu-widget__form';
 
         const input = document.createElement('input');
         input.type = 'text';
-        input.placeholder = 'domain to unblock, e.g. www.example.com';
+        input.placeholder = 'example.com';
         input.autocomplete = 'off';
         input.spellcheck = false;
+        input.setAttribute('aria-label', 'Domain to unblock');
 
         const btn = document.createElement('button');
         btn.type = 'submit';
         btn.className = BTN_CLASS;
         btn.textContent = 'Unblock';
         btn.id = 'aqu-widget-submit';
+        btn.setAttribute('aria-label', 'Unblock domain for all devices');
 
         const status = document.createElement('div');
+        status.id = 'aqu-widget-status';
         status.className = 'aqu-widget__status';
-        status.textContent = 'AGQuery Unblock';
+        status.textContent = 'Allow a domain for every device.';
 
-        // Give the submit button a domain too, so delegation can route it.
-        const syncBtnDomain = () => {
-            btn.dataset.domain = input.value
-                .trim()
+        const normalizeDomain = (value) => {
+            let domain = String(value || '').trim().toLowerCase();
+            domain = domain
                 .replace(/^https?:\/\//i, '')
-                .replace(/\/.*$/, '');
-            btn.disabled = !btn.dataset.domain;
+                .replace(/^[^/]*@/, '')
+                .split(/[/?#]/)[0]
+                .replace(/:\d+$/, '')
+                .replace(/\.$/, '');
+            if (!domain || domain.length > 253) return '';
+            if (!/^[a-z0-9.-]+$/.test(domain)) return '';
+            if (domain.startsWith('.') || domain.includes('..')) return '';
+            const labels = domain.split('.');
+            if (labels.length < 2 || labels.some((label) => !label || label.length > 63)) return '';
+            return domain;
+        };
+
+        const syncBtnDomain = () => {
+            const domain = normalizeDomain(input.value);
+            btn.dataset.domain = domain;
+            btn.disabled = !domain;
         };
         input.addEventListener('input', syncBtnDomain);
         syncBtnDomain();
 
+        const setCollapsed = (collapsed) => {
+            wrap.classList.toggle('aqu-widget--collapsed', collapsed);
+            toggle.textContent = collapsed ? '+' : '−';
+            toggle.title = collapsed ? 'Expand quick unblock' : 'Minimize';
+            toggle.setAttribute('aria-label', collapsed ? 'Expand quick unblock' : 'Minimize quick unblock');
+            toggle.setAttribute('aria-expanded', String(!collapsed));
+            title.textContent = collapsed ? 'AdGuard Assistant' : 'AdGuard Home Browser Assistant';
+            try {
+                localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
+            } catch (_) {
+                /* Storage can be unavailable in private windows. */
+            }
+        };
+
+        let collapsed = false;
+        try {
+            collapsed = localStorage.getItem(COLLAPSE_KEY) === '1';
+        } catch (_) {
+            /* Keep expanded. */
+        }
+        setCollapsed(collapsed);
+        toggle.addEventListener('click', () => {
+            setCollapsed(!wrap.classList.contains('aqu-widget--collapsed'));
+        });
+
         form.append(input, btn);
-        wrap.append(form, status);
+        body.append(form, status);
+        wrap.append(head, body);
         document.body.appendChild(wrap);
 
         form.addEventListener('submit', (e) => {
             e.preventDefault();
-            const domain = btn.dataset.domain;
+            const domain = normalizeDomain(input.value);
             if (!domain) {
-                status.textContent = 'Enter a domain first.';
+                status.dataset.state = 'error';
+                status.textContent = 'Enter a valid domain, e.g. example.com.';
+                input.focus();
                 return;
             }
-            runUnblock(domain, btn).finally(() => {
+            input.value = domain;
+            btn.dataset.domain = domain;
+            runUnblock(domain, btn, updateWidgetStatus).finally(() => {
                 btn.disabled = false;
                 btn.textContent = 'Unblock';
                 syncBtnDomain();
