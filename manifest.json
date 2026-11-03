@@ -1,12 +1,17 @@
 {
-  "name": "AGQuery Unblock",
-  "version": "0.2.0",
+  "name": "AdGuard Home Browser Assistant",
+  "version": "0.3.0",
   "manifest_version": 2,
-  "description": "Automatic HTTPS block page for AdGuard Home: catches failed navigations, shows an Unblock page using your existing AGH session, and supports Unblock / Unblock for this client only.",
+  "description": "Unofficial browser assistant for AdGuard Home: current-site status, block/unblock (all or this client), protection pause, stats, and an automatic HTTPS block page.",
   "homepage_url": "https://github.com/tmiland/agquery-unblock",
   "browser_action": {
     "browser_style": true,
-    "default_title": "AGQuery Unblock — settings"
+    "default_title": "AdGuard Home Browser Assistant",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icon-48.png",
+      "96": "icon-96.png"
+    }
   },
   "background": {
     "scripts": [
@@ -58,5 +63,9 @@
         ]
       }
     }
+  },
+  "icons": {
+    "48": "icon-48.png",
+    "96": "icon-96.png"
   }
 }

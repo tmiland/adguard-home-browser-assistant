@@ -277,10 +277,10 @@ async function resolveClient(host, cfg) {
     return best ? best.client : '';
 }
 
-async function handleUnblock(msg) {
+async function handleToggle(msg) {
+    const action = msg.action === 'block' ? 'block' : 'unblock';
     const host = normalizeHost(msg.host);
-    const originalUrl = validUrl(msg.url, host);
-    if (!host || !originalUrl) return { ok: false, message: 'Invalid block-page URL.' };
+    if (!host) return { ok: false, message: 'Invalid hostname.' };
 
     const cfg = await getConfig();
     let client = '';
@@ -303,9 +303,11 @@ async function handleUnblock(msg) {
     const escaped = escapeClient(client);
     const blockRule = msg.clientOnly ? `||${host}^$client='${escaped}'` : `||${host}^$important`;
     const allowRule = msg.clientOnly ? `@@||${host}^$client='${escaped}'` : `@@||${host}^$important`;
+    const removeRule = action === 'block' ? allowRule : blockRule;
+    const addRule = action === 'block' ? blockRule : allowRule;
 
-    const next = rules.filter((r) => r !== blockRule);
-    if (!next.includes(allowRule)) next.push(allowRule);
+    const next = rules.filter((r) => r !== removeRule);
+    if (!next.includes(addRule)) next.push(addRule);
 
     if (JSON.stringify(next) !== JSON.stringify(rules)) {
         const post = await aghApi('/control/filtering/set_rules', { method: 'POST', body: { rules: next } });
@@ -313,18 +315,25 @@ async function handleUnblock(msg) {
             return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
         }
         if (!post.ok) {
-            return { ok: false, message: 'AdGuard Home rejected the allowlist update.' };
+            return { ok: false, message: 'AdGuard Home rejected the rule update.' };
         }
     }
 
-    const checkPath = (withClient) =>
-        '/control/filtering/check_host?name=' + encodeURIComponent(host) +
-        (withClient ? '&client=' + encodeURIComponent(client) : '');
+    const checkPath = '/control/filtering/check_host?name=' + encodeURIComponent(host) +
+        (msg.clientOnly ? '&client=' + encodeURIComponent(client) : '');
 
     for (let i = 0; i < 20; i++) {
-        const r = await aghApi(checkPath(msg.clientOnly));
-        if (r.ok && r.data && !/^Filtered/.test(r.data.reason || '')) {
-            return { ok: true, client, message: 'Unblocked.' };
+        const r = await aghApi(checkPath);
+        if (r.ok && r.data) {
+            const filtered = /^Filtered/.test(r.data.reason || '');
+            if ((action === 'block' && filtered) || (action === 'unblock' && !filtered)) {
+                return {
+                    ok: true,
+                    blocked: action === 'block',
+                    client,
+                    message: action === 'block' ? 'Blocked.' : 'Unblocked.',
+                };
+            }
         }
         await sleep(1500);
     }
@@ -333,6 +342,71 @@ async function handleUnblock(msg) {
         pending: true,
         client,
         message: 'AdGuard is still rebuilding its filters. Wait a few seconds and try again.',
+    };
+}
+
+async function handleUnblock(msg) {
+    return handleToggle(Object.assign({}, msg, { action: 'unblock' }));
+}
+
+async function handleGetSite(msg) {
+    const host = normalizeHost(msg.host);
+    if (!host) return { ok: false, message: 'Invalid hostname.' };
+    const cfg = await getConfig();
+    const check = await aghApi('/control/filtering/check_host?name=' + encodeURIComponent(host));
+    if (check.session_expired) {
+        return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+    }
+    const info = await findBlockInfo(host);
+    return {
+        ok: true,
+        blocked: !!info.blocked,
+        reason: info.reason || '',
+        rule: info.rule || '',
+        client: info.client || cfg.clientName || '',
+    };
+}
+
+async function handleGetProtection() {
+    const r = await aghApi('/control/status');
+    if (r.session_expired) {
+        return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+    }
+    if (!r.ok || !r.data) return { ok: false, message: 'Could not read AdGuard Home status.' };
+    return {
+        ok: true,
+        enabled: r.data.protection_enabled !== false,
+        remaining_ms: Number(r.data.protection_disabled_duration) || 0,
+        version: r.data.version || '',
+        running: r.data.running !== false,
+    };
+}
+
+async function handleSetProtection(msg) {
+    const body = { enabled: !!msg.enabled };
+    if (!msg.enabled) {
+        const duration = Number(msg.duration);
+        if (duration > 0) body.duration = duration;
+    }
+    const r = await aghApi('/control/protection', { method: 'POST', body });
+    if (r.session_expired) {
+        return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+    }
+    if (!r.ok) return { ok: false, message: 'AdGuard Home rejected the protection change.' };
+    return { ok: true };
+}
+
+async function handleGetStats() {
+    const r = await aghApi('/control/stats');
+    if (r.session_expired) {
+        return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+    }
+    if (!r.ok || !r.data) return { ok: false, message: 'Could not read AdGuard Home stats.' };
+    return {
+        ok: true,
+        queries: Number(r.data.num_dns_queries) || 0,
+        blocked: Number(r.data.num_blocked_filtering) || 0,
+        avg_ms: Math.round((Number(r.data.avg_processing_time) || 0) * 1000),
     };
 }
 
@@ -383,10 +457,6 @@ browser.webNavigation.onErrorOccurred.addListener((details) => {
     void handleNavigationError(details);
 });
 
-browser.browserAction.onClicked.addListener(() => {
-    void browser.runtime.openOptionsPage();
-});
-
 browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (!msg || typeof msg.type !== 'string') return undefined;
 
@@ -403,6 +473,46 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         handleUnblock(msg).then(sendResponse).catch((e) => sendResponse({
             ok: false,
             message: 'Unblock failed: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'toggle-site') {
+        handleToggle(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Rule update failed: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'get-site') {
+        handleGetSite(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not check the site: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'get-protection') {
+        handleGetProtection().then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not read protection: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'set-protection') {
+        handleSetProtection(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not change protection: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'get-stats') {
+        handleGetStats().then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not read stats: ' + (e && e.message ? e.message : String(e)),
         }));
         return true;
     }

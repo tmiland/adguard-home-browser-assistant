@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>AdGuard Home Browser Assistant</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="assistant">
+        <header class="top">
+            <div class="brand">
+                <svg class="shield" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 2.2 4.5 5.4v5.8c0 4.8 3.2 9.2 7.5 10.6 4.3-1.4 7.5-5.8 7.5-10.6V5.4L12 2.2Z" fill="currentColor"/>
+                    <path d="m8.4 11.7 2.5 2.5 4.7-5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <div>
+                    <div class="brandname">AdGuard Home</div>
+                    <div class="sub">Browser Assistant</div>
+                </div>
+            </div>
+            <span class="badge badge-neutral" id="autoBadge">auto</span>
+        </header>
+
+        <main>
+            <section class="site">
+                <div class="sitehead">
+                    <span class="label">Current site</span>
+                    <span class="badge" id="siteState">checking…</span>
+                </div>
+                <div class="host" id="host">—</div>
+                <div class="details" id="details"></div>
+                <div class="actions">
+                    <button class="btn btn-primary" id="toggleBtn" type="button" disabled>Check</button>
+                    <button class="btn btn-secondary" id="toggleClientBtn" type="button" disabled>This client only</button>
+                </div>
+                <p class="status" id="siteStatus" role="status" aria-live="polite"></p>
+            </section>
+
+            <section class="protection">
+                <div class="sectionhead">
+                    <span class="label">Protection</span>
+                    <span class="badge" id="protectionState">…</span>
+                </div>
+                <div class="pauserow">
+                    <select id="pauseSelect" aria-label="Pause duration">
+                        <option value="30000">30 seconds</option>
+                        <option value="60000">1 minute</option>
+                        <option value="300000">5 minutes</option>
+                        <option value="900000">15 minutes</option>
+                    </select>
+                    <button class="btn btn-secondary" id="pauseBtn" type="button" disabled>Pause</button>
+                    <button class="btn btn-primary" id="resumeBtn" type="button" hidden>Resume</button>
+                </div>
+                <p class="status" id="protectionStatus" role="status" aria-live="polite"></p>
+            </section>
+
+            <section class="stats">
+                <div class="stat">
+                    <b id="queries">—</b>
+                    <span>queries</span>
+                </div>
+                <div class="stat">
+                    <b id="blocked">—</b>
+                    <span>blocked</span>
+                </div>
+                <div class="stat">
+                    <b id="version">—</b>
+                    <span>AGH</span>
+                </div>
+            </section>
+        </main>
+
+        <footer class="bottom">
+            <a id="querylogLink" href="#" target="_blank" rel="noopener noreferrer">Query log</a>
+            <a id="aghLink" href="#" target="_blank" rel="noopener noreferrer">AdGuard Home</a>
+            <a id="settingsLink" href="options.html" target="_blank" rel="noopener noreferrer">Settings</a>
+        </footer>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>
