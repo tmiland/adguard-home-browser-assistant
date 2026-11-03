@@ -4,3 +4,7 @@ AGENTS.md
 
 # Build output
 web-ext-artifacts/
+
+# AMO upload state
+.amo-upload-uuid
+.web-extension-id
