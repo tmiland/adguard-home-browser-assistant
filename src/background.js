@@ -55,15 +55,6 @@ function originOf(url) {
     }
 }
 
-function escapeClient(value) {
-    return String(value)
-        .replace(/\\/g, '\\\\')
-        .replace(/'/g, "\\'")
-        .replace(/"/g, '\\"')
-        .replace(/,/g, '\\,')
-        .replace(/\|/g, '\\|');
-}
-
 async function getConfig() {
     const cfg = await browser.storage.local.get({
         aghUrl: DEFAULT_AGH,
@@ -200,10 +191,7 @@ async function apiBridge(cfg, path, opt) {
 async function aghApi(path, opt) {
     const cfg = await getConfig();
     const direct = await apiDirect(cfg, path, opt);
-    if (direct.ok) {
-        const method = (opt && opt.method) || 'GET';
-        if (method !== 'GET' || direct.data !== null) return direct;
-    }
+    if (direct.ok) return direct;
     if (direct.session_expired) {
         /* The direct request had no usable SameSite session; a same-origin
            tab fetch may still work. */
@@ -375,15 +363,6 @@ async function restorePendingUnblocks() {
     for (const entry of list) schedulePendingUnblock(entry);
 }
 
-function durationLabel(ms) {
-    const seconds = Math.max(1, Math.round(ms / 1000));
-    if (seconds < 60) return seconds + ' seconds';
-    const minutes = Math.round(seconds / 60);
-    if (minutes < 60) return minutes + (minutes === 1 ? ' minute' : ' minutes');
-    const hours = Math.round(minutes / 60);
-    return hours + (hours === 1 ? ' hour' : ' hours');
-}
-
 async function handleToggle(msg) {
     const action = msg.action === 'block' ? 'block' : 'unblock';
     const host = normalizeHost(msg.host);
@@ -418,12 +397,8 @@ async function handleToggle(msg) {
     }
 
     const rules = status.data.user_rules.slice();
-    const escaped = escapeClient(client);
-    const blockRule = msg.clientOnly ? `||${target}^$client='${escaped}'` : `||${target}^$important`;
-    const allowRule = msg.clientOnly ? `@@||${target}^$client='${escaped}'` : `@@||${target}^$important`;
-    const hostBlockRule = msg.clientOnly ? `||${host}^$client='${escaped}'` : `||${host}^$important`;
-    const hostAllowRule = msg.clientOnly ? `@@||${host}^$client='${escaped}'` : `@@||${host}^$important`;
-    const addRule = action === 'block' ? hostBlockRule : allowRule;
+    const ruleSet = AGHRuleUtils.toggleRules(host, target, !!msg.clientOnly, client, action);
+    const { allowRule, hostAllowRule, addRule, removeRules } = ruleSet;
     const ruleAlreadyPresent = rules.includes(addRule);
     const temporary = action === 'unblock' && !!msg.temporary;
     let durationMs = 0;
@@ -433,12 +408,6 @@ async function handleToggle(msg) {
         durationMs = Math.min(durationMs, 24 * 60 * 60 * 1000);
     }
 
-    let removeRules;
-    if (action === 'block') {
-        removeRules = [hostAllowRule];
-    } else {
-        removeRules = [blockRule, hostBlockRule];
-    }
     const next = rules.filter((r) => !removeRules.includes(r));
     if (!next.includes(addRule)) next.push(addRule);
 
@@ -474,6 +443,10 @@ async function handleToggle(msg) {
         await cancelPendingForRule(allowRule);
     }
 
+    /* Flush AGH's DNS cache. Empty-body POST must not carry Content-Type. */
+    const cache = await aghApi('/control/cache_clear', { method: 'POST' });
+    const cacheCleared = !!cache.ok;
+
     const checkPath = '/control/filtering/check_host?name=' + encodeURIComponent(host) +
         (msg.clientOnly ? '&client=' + encodeURIComponent(client) : '');
 
@@ -490,9 +463,10 @@ async function handleToggle(msg) {
                     temporary: temporary && temporaryUntil > 0,
                     until: temporaryUntil,
                     duration: temporary ? durationMs : 0,
+                    cache_cleared: cacheCleared,
                     message: action === 'block'
                         ? 'Blocked.'
-                        : (temporaryUntil > 0 ? 'Unblocked for ' + durationLabel(durationMs) + '.' : 'Unblocked.'),
+                        : (temporaryUntil > 0 ? 'Unblocked for ' + AGHRuleUtils.durationLabel(durationMs) + '.' : 'Unblocked.'),
                 };
             }
         }
@@ -506,6 +480,7 @@ async function handleToggle(msg) {
         temporary: temporary && temporaryUntil > 0,
         until: temporaryUntil,
         duration: temporary ? durationMs : 0,
+        cache_cleared: cacheCleared,
         message: 'AdGuard is still rebuilding its filters. Wait a few seconds and try again.',
     };
 }
@@ -895,6 +870,51 @@ async function handleRemoveCosmetic(msg) {
     return { ok: true, message: 'Removed the rule from AdGuard Home.' };
 }
 
+async function handleGetPendingUnblocks() {
+    const list = await getPendingUnblocks();
+    const now = Date.now();
+    return {
+        ok: true,
+        entries: list
+            .map((entry) => ({
+                id: entry.id,
+                host: entry.host || '',
+                target: entry.target || '',
+                client: entry.client || '',
+                rule: entry.rule,
+                until: Number(entry.until) || 0,
+                remaining_ms: Math.max(0, (Number(entry.until) || 0) - now),
+                attempts: Number(entry.attempts) || 0,
+            }))
+            .sort((a, b) => a.until - b.until),
+    };
+}
+
+async function handleCancelPendingUnblock(msg) {
+    const id = String(msg.id || '');
+    if (!id) return { ok: false, message: 'Missing temporary unblock id.' };
+    const list = await getPendingUnblocks();
+    const entry = list.find((item) => item.id === id);
+    if (!entry) return { ok: true, message: 'That temporary unblock is no longer pending.' };
+
+    const result = await removeAllowRule(entry.rule);
+    if (!result.ok) {
+        return {
+            ok: false,
+            session_expired: !!result.session_expired,
+            message: result.session_expired
+                ? 'AdGuard Home session expired. Log in and try again.'
+                : 'Could not remove the temporary allow rule.',
+        };
+    }
+
+    const timer = tempUnblockTimers.get(entry.id);
+    if (timer) clearTimeout(timer);
+    tempUnblockTimers.delete(entry.id);
+    await savePendingUnblocks(list.filter((item) => item.id !== entry.id));
+    return { ok: true, message: 'Temporary unblock cancelled.' };
+}
+
 /* Injected CSS is applied at user-origin so page CSP cannot block it. */
 const cosmeticCssByTab = new Map();
 
@@ -1128,6 +1148,22 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         handleRemoveCosmetic(msg).then(sendResponse).catch((e) => sendResponse({
             ok: false,
             message: 'Could not remove the element-hiding rule: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'get-pending-unblocks') {
+        handleGetPendingUnblocks().then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not read temporary unblocks: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'cancel-pending-unblock') {
+        handleCancelPendingUnblock(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not cancel the temporary unblock: ' + (e && e.message ? e.message : String(e)),
         }));
         return true;
     }

@@ -315,3 +315,56 @@ section {
     text-decoration: underline;
     text-underline-offset: 2px;
 }
+
+.pending-list {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.pending-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 7px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--soft);
+}
+
+.pending-host {
+    flex: 1;
+    min-width: 0;
+    font: 600 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+}
+
+.pending-time {
+    color: var(--muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.pending-cancel {
+    appearance: none;
+    flex: none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    padding: 4px 7px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.pending-cancel:hover {
+    border-color: var(--red);
+    color: var(--red);
+}
+
+.pending-cancel:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}

@@ -23,6 +23,8 @@ the browser-side control surface.
 - **Protection**: on/paused, pause for 30s / 1m / 5m / 15m, resume. This calls
   AGH's `/control/protection` with a duration in milliseconds.
 - **Stats**: total queries and blocked count from `/control/stats`.
+- **Temporary unblocks**: active temporary rules with a live countdown and
+  **Cancel**.
 - Links to the AGH query log, AGH home, and Settings.
 
 ### Automatic HTTPS block page
@@ -56,8 +58,10 @@ the rule is visible and editable in AGH while the browser does the hiding.
   use Refresh after editing rules directly in the AGH UI. Removing a rule
   through the assistant also refreshes open tabs.
 - Global CSS-injection rules (`example.com#$#body { ... }`) and exceptions
-  (`#@#`, `#@$#`) work too. Extended selectors that Firefox's CSS engine
-  supports (for example `:has()`) are applied; unsupported ones are skipped.
+  (`#@#`, `#@$#`) work too. Native CSS selectors (including `:has()`) are
+  applied directly. A small extended-CSS engine also supports `:remove()`,
+  `:style()`, `:has-text()`, `:upward()`, `:matches-css()` and
+  `:not(:has-text(...))`; other extended selectors are skipped.
 - Settings has local rules for this browser and a switch to stop saving picked
   rules to AGH.
 
@@ -111,7 +115,10 @@ The assistant uses:
 - `example.com##.ad-banner` — hide matching elements on the site and subdomains.
 - `example.com#@#.ad-banner` — cancel that hide rule for the site.
 - `example.com#$#body { overflow: auto !important; }` — inject a style rule.
-- `example.com#?#.ad:has(> .sponsor)` — extended selector, if Firefox supports it.
+- `example.com##.ad:has-text(/sponsor/):remove()` — extended text match.
+- `example.com##.ad:upward(.feed)` — hide the matching ancestor.
+- `example.com##.ad:style(border: 1px solid red !important)` — extended style.
+- `example.com##.ad:matches-css(display: none):remove()` — computed-style match.
 
 When a site is blocked by a **parent-domain** rule (e.g. `||memfault.com^` blocks
 `chunks.memfault.com`), the assistant unblocks the **rule’s domain**
@@ -133,7 +140,8 @@ subdomain of the site works.
   the cosmetic rules, but its DNS engine does not inject CSS into pages.
 - Cosmetic rules are read from AGH **user rules** and the local rules box; rules
   inside subscribed filter lists are not imported. Scriptlet/JS rules are not
-  executed, and unsupported extended selectors are skipped.
+  executed. The extended-CSS engine covers the common selectors above, but not
+  every AdGuard extension (for example `:matches-css-before` is skipped).
 - On pages with a strict Content-Security-Policy, the assistant injects CSS at
   user origin (`tabs.insertCSS`) so page CSP does not block the rules. The
   picker overlay uses a separate shadow-root UI.
@@ -141,8 +149,9 @@ subdomain of the site works.
 ## Files
 
 - `src/background.js` — navigation errors, AGH API, block/unblock/protection/stats, cosmetic cache.
-- `src/cosmetic-rules.js` — Adblock cosmetic-rule parser/matcher (also used by tests).
-- `src/cosmetic.js` — element hiding + picker content script.
+- `src/rule-utils.js` — pure allow/block rule builder and duration labels (tested).
+- `src/cosmetic-rules.js` — Adblock cosmetic-rule parser/matcher, including extended selectors.
+- `src/cosmetic.js` — element hiding, extended-CSS runtime, picker content script.
 - `src/api-bridge.js` — same-origin AGH API bridge in an AGH tab.
 - `src/content.js` — query-log buttons/widget.
 - `popup.html|css|js` — Browser Assistant toolbar popup.

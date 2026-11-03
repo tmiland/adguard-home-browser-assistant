@@ -82,6 +82,147 @@
         };
     }
 
+    const EXTENDED_NAMES = new Set(['has-text', 'contains', 'matches-css', 'upward', 'remove', 'style']);
+
+    function findMatchingParen(text, openIndex) {
+        let depth = 0;
+        let quote = '';
+        let escape = false;
+        for (let i = openIndex; i < text.length; i++) {
+            const ch = text[i];
+            if (escape) {
+                escape = false;
+                continue;
+            }
+            if (ch === '\\') {
+                escape = true;
+                continue;
+            }
+            if (quote) {
+                if (ch === quote) quote = '';
+                continue;
+            }
+            if (ch === '"' || ch === "'") {
+                quote = ch;
+                continue;
+            }
+            if (ch === '(') {
+                depth++;
+            } else if (ch === ')') {
+                depth--;
+                if (depth === 0) return i;
+            }
+        }
+        return -1;
+    }
+
+    function containsExtended(value) {
+        return /:(?:has-text|contains|matches-css|upward|remove|style)\(/i.test(value);
+    }
+
+    function parseExtendedSelector(selector) {
+        const text = String(selector || '').trim();
+        if (!text) return null;
+
+        let base = '';
+        const tokens = [];
+        let i = 0;
+        let bracket = 0;
+        let quote = '';
+
+        while (i < text.length) {
+            const ch = text[i];
+            if (quote) {
+                base += ch;
+                if (ch === quote) quote = '';
+                i++;
+                continue;
+            }
+            if (ch === '"' || ch === "'") {
+                quote = ch;
+                base += ch;
+                i++;
+                continue;
+            }
+            if (ch === '\\') {
+                base += ch + (text[i + 1] || '');
+                i += 2;
+                continue;
+            }
+            if (ch === '[') {
+                bracket++;
+                base += ch;
+                i++;
+                continue;
+            }
+            if (ch === ']') {
+                bracket = Math.max(0, bracket - 1);
+                base += ch;
+                i++;
+                continue;
+            }
+            if (ch === ':' && bracket === 0) {
+                const match = /^:([a-zA-Z-]+)/.exec(text.slice(i));
+                if (match) {
+                    const name = match[1].toLowerCase();
+                    const nameEnd = i + match[0].length;
+                    let arg = null;
+                    let end = nameEnd;
+                    if (text[nameEnd] === '(') {
+                        const close = findMatchingParen(text, nameEnd);
+                        if (close < 0) return null;
+                        arg = text.slice(nameEnd + 1, close);
+                        end = close + 1;
+                    }
+
+                    if (EXTENDED_NAMES.has(name)) {
+                        tokens.push({
+                            type: name === 'contains' ? 'has-text' : name,
+                            arg: arg || '',
+                            raw: text.slice(i, end),
+                        });
+                        i = end;
+                        continue;
+                    }
+
+                    if (name === 'not' && arg !== null && containsExtended(arg)) {
+                        const inner = parseExtendedSelector(arg);
+                        if (!inner || inner.base || inner.tokens.length !== 1) return null;
+                        const token = inner.tokens[0];
+                        if (token.type === 'has-text') {
+                            tokens.push({ type: 'not-has-text', arg: token.arg, raw: text.slice(i, end) });
+                        } else if (token.type === 'matches-css') {
+                            tokens.push({ type: 'not-matches-css', arg: token.arg, raw: text.slice(i, end) });
+                        } else {
+                            return null;
+                        }
+                        i = end;
+                        continue;
+                    }
+
+                    base += text.slice(i, end);
+                    i = end;
+                    continue;
+                }
+            }
+            base += ch;
+            i++;
+        }
+
+        if (!tokens.length) return null;
+        const style = tokens
+            .filter((token) => token.type === 'style')
+            .map((token) => token.arg.trim())
+            .filter(Boolean)
+            .join('; ');
+        return {
+            base: base.trim(),
+            tokens,
+            action: tokens.some((token) => token.type === 'style') ? 'style' : 'hide',
+            style,
+        };
+    }
+
     function parseDomains(prefix) {
         const includes = [];
         const excludes = [];
@@ -150,15 +291,27 @@
         const hideExceptions = new Set();
         const styles = new Map();
         const styleExceptions = new Set();
+        const extended = [];
 
         for (const rule of rules) {
             if (!ruleAppliesToHost(rule, host)) continue;
-            if (rule.type === 'hide') {
-                hide.set(rule.selector, rule);
+            if (rule.type === 'hide' || rule.type === 'style') {
+                const ext = parseExtendedSelector(rule.selector);
+                if (ext) {
+                    extended.push({
+                        selector: rule.selector,
+                        raw: rule.raw,
+                        action: ext.action,
+                        style: ext.style,
+                        extended: ext,
+                    });
+                } else if (rule.type === 'hide') {
+                    hide.set(rule.selector, rule);
+                } else {
+                    styles.set(rule.selector, rule);
+                }
             } else if (rule.type === 'exception') {
                 hideExceptions.add(rule.selector);
-            } else if (rule.type === 'style') {
-                styles.set(rule.selector, rule);
             } else if (rule.type === 'style-exception') {
                 styleExceptions.add(rule.selector);
             }
@@ -166,6 +319,11 @@
 
         for (const selector of hideExceptions) hide.delete(selector);
         for (const selector of styleExceptions) styles.delete(selector);
+        const extendedRules = extended.filter((rule) => (
+            rule.action === 'style'
+                ? !styleExceptions.has(rule.selector)
+                : !hideExceptions.has(rule.selector)
+        ));
 
         return {
             hide: Array.from(hide.values()).map((rule) => ({
@@ -177,6 +335,7 @@
                 body: rule.body,
                 raw: rule.raw,
             })),
+            extended: extendedRules,
             ignored: rules.filter((rule) => rule.type === 'script' || rule.type === 'script-exception').length,
             total: rules.length,
         };
@@ -198,6 +357,7 @@
         parseDomains,
         matchesDomain,
         ruleAppliesToHost,
+        parseExtendedSelector,
         buildForHost,
         toCss,
     };

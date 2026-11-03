@@ -88,3 +88,38 @@ test('emits CSS in hide-then-style order', () => {
     assert.match(css, /body \{ overflow: auto !important; \}/);
     assert.ok(css.indexOf('.ad') < css.indexOf('body'));
 });
+
+test('parses extended cosmetic selectors', () => {
+    const hide = C.parseExtendedSelector('.ad:has-text(/sponsor/):upward(.feed)');
+    assert.equal(hide.base, '.ad');
+    assert.equal(hide.action, 'hide');
+    assert.deepEqual(hide.tokens.map((t) => t.type), ['has-text', 'upward']);
+
+    const style = C.parseExtendedSelector(
+        'a[href="#"]:not(:has-text(/(\\s|\\d|^$)/)):upward([role="feed"]>div):style(border: 8px dotted yellow !important)',
+    );
+    assert.equal(style.base, 'a[href="#"]');
+    assert.equal(style.action, 'style');
+    assert.equal(style.style, 'border: 8px dotted yellow !important');
+    assert.deepEqual(style.tokens.map((t) => t.type), ['not-has-text', 'upward', 'style']);
+
+    const css = C.parseExtendedSelector('.ad:matches-css(display: none):remove()');
+    assert.equal(css.action, 'hide');
+    assert.deepEqual(css.tokens.map((t) => t.type), ['matches-css', 'remove']);
+
+    assert.equal(C.parseExtendedSelector('.ad:not(.keep)'), null);
+    assert.equal(C.parseExtendedSelector('.ad:hover'), null);
+});
+
+test('buildForHost keeps extended rules out of plain CSS', () => {
+    const built = C.buildForHost([
+        'example.com##.plain',
+        'example.com##.ad:has-text(/sponsor/)',
+        'example.com##.styled:style(color: red)',
+    ], 'example.com');
+    assert.deepEqual(built.hide.map((r) => r.selector), ['.plain']);
+    assert.equal(built.extended.length, 2);
+    assert.equal(built.extended[0].action, 'hide');
+    assert.equal(built.extended[1].action, 'style');
+    assert.equal(built.extended[1].style, 'color: red');
+});

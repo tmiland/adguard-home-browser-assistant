@@ -1,12 +1,10 @@
 /*
  * AdGuard Home Browser Assistant — content script for the AdGuard Home web UI.
  *
- * Replicates the front-end "Unblock" action but adds:
- *   1. POST /control/cache_clear to flush AGH's DNS cache
- *   2. verify via /control/filtering/check_host
- *
- * All requests are same-origin (the script only runs inside the AGH web UI),
- * so the logged-in session cookie is sent automatically.
+ * Injects Unblock buttons into the AGH query log and a floating Quick
+ * unblock widget. Unblocking is delegated to the background handler (the same
+ * one used by the popup and block page), which adds the allow rule, clears
+ * AGH's DNS cache, and verifies via check_host.
  *
  * Robustness notes (AGH rows are React-rendered and churn constantly):
  *   - click handling uses EVENT DELEGATION (one listener on document,
@@ -24,50 +22,11 @@
     const DOMAIN_CELL_SEL = '.logs__cell--domain';
     const TOAST_MS = 8000;
 
-    const blockRule = (domain) => `||${domain}^$important`;
-    const unblockRule = (domain) => `@@||${domain}^$important`;
-
-    const isFilteredReason = (reason) => (reason || '').startsWith('Filtered');
+    const api = (typeof browser !== 'undefined' && browser.runtime && typeof browser.runtime.sendMessage === 'function')
+        ? browser
+        : null;
 
     const dbg = (msg) => console.log('[AGH Assistant]', msg);
-
-    /* ------------------------------- API calls ------------------------------- */
-
-    async function apiGet(path) {
-        const res = await fetch(path, { method: 'GET', credentials: 'same-origin' });
-        if (res.redirected && /\/login\.html/i.test(res.url)) {
-            throw new Error('session_expired');
-        }
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status} on GET ${path}`);
-        }
-        const text = await res.text();
-        return text ? JSON.parse(text) : {};
-    }
-
-    async function apiSetRules(rules) {
-        const res = await fetch('/control/filtering/set_rules', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rules }),
-        });
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status} on set_rules`);
-        }
-    }
-
-    // NOTE: AGH (ensureContentType) rejects an empty body that carries a
-    // Content-Type header, so cache_clear must be sent with NO headers.
-    async function apiClearCache() {
-        const res = await fetch('/control/cache_clear', {
-            method: 'POST',
-            credentials: 'same-origin',
-        });
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status} on cache_clear`);
-        }
-    }
 
     /* --------------------------- unblock workflow ---------------------------- */
 
@@ -79,76 +38,38 @@
         };
         dbg(`unblocking ${domain}`);
         setButtonBusy(btn, true);
-        report('running', `Adding allowlist rule for ${domain}`);
+        report('running', `Unblocking ${domain}…`);
 
         try {
-            let status;
-            try {
-                status = await apiGet('/control/filtering/status');
-            } catch (e) {
-                if (e.message === 'session_expired') {
-                    report('error', 'AGH session expired — log in and try again.');
-                    setButtonBusy(btn, false);
-                    return;
-                }
-                throw e;
-            }
+            if (!api) throw new Error('Extension API is unavailable.');
+            const res = await api.runtime.sendMessage({
+                type: 'unblock',
+                host: domain,
+                clientOnly: false,
+                temporary: false,
+            });
+            if (!res) throw new Error('No response from the background.');
 
-            const rules = Array.isArray(status.user_rules) ? status.user_rules.slice() : [];
-            const unblock = unblockRule(domain);
-            const block = blockRule(domain);
-            const iUnblock = rules.indexOf(unblock);
-            const iBlock = rules.indexOf(block);
-
-            if (iBlock >= 0) {
-                rules.splice(iBlock, 1);
-            }
-            if (iUnblock < 0) {
-                rules.push(unblock);
-            }
-
-            report('running', 'Saving custom filtering rules…');
-            dbg('set_rules', rules.length, 'rules');
-            await apiSetRules(rules);
-
-            report('running', 'Clearing AGH DNS cache…');
-            dbg('cache_clear');
-            await apiClearCache();
-
-            report('running', 'Verifying (AGH rebuilds filters asynchronously)…');
-            let check = null;
-            let reason = '';
-            for (let attempt = 0; attempt < 20; attempt++) {
-                check = await apiGet(
-                    `/control/filtering/check_host?name=${encodeURIComponent(domain)}`,
-                );
-                reason = check.reason || '';
-                if (!isFilteredReason(reason)) break;
-                await new Promise((resolve) => setTimeout(resolve, 1500));
-            }
-            const ips = check.ip_addrs || [];
-
-            if (isFilteredReason(reason)) {
+            if (res.session_expired) {
                 setButtonUnblocked(btn, false);
-                const svc = check.service_name ? ` (${check.service_name})` : '';
+                report('error', 'AGH session expired — log in and try again.');
+                return;
+            }
+            if (res.ok) {
+                setButtonUnblocked(btn, true);
+                const target = res.target && res.target !== domain
+                    ? ` (${res.target} and its subdomains)`
+                    : '';
                 report(
-                    'error',
-                    `${domain} is still blocked${svc} — reason: ${reason}. It may be covered by ` +
-                        'a filter list or blocked service; add an allowlist entry in ' +
-                        'Settings → Filtering → Custom filtering rules.',
+                    'success',
+                    `Unblocked ${domain}${target}. If the client still shows it blocked, flush its ` +
+                        'DNS cache; old blocked answers can persist for up to 10 s.',
                 );
                 return;
             }
 
-            setButtonUnblocked(btn, true);
-            const ipInfo = ips.length ? ` now resolves to ${ips.join(', ')}` : '';
-            report(
-                'success',
-                `Unblocked ${domain}${ipInfo}. The AGH engine rebuild takes ~6 s; if the client still ` +
-                    'shows it blocked, flush the client DNS cache (`ipconfig /flushdns` / ' +
-                    '`systemd-resolve --flush-caches`) — old 0.0.0.0 answers persist up to ' +
-                    '`blocked_response_ttl` (10 s) or longer in some resolvers.',
-            );
+            setButtonUnblocked(btn, false);
+            report('error', res.message || `Failed to unblock ${domain}.`);
         } catch (e) {
             dbg('unblock failed', e && e.message ? e.message : e);
             setButtonUnblocked(btn, false);
@@ -178,7 +99,7 @@
         btn.className = BTN_CLASS;
         btn.textContent = 'Unblock';
         btn.dataset.domain = domain;
-        btn.title = `Add ${unblockRule(domain)}, clear AGH cache, verify`;
+        btn.title = 'Unblock this domain for all devices (clears AGH cache and verifies)';
         return btn;
     }
 

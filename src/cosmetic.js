@@ -24,6 +24,10 @@
     let applySeq = 0;
     let picker = null;
     let refreshTimer = null;
+    let lastBuilt = null;
+    let extObserver = null;
+    let extTimer = null;
+    const EXT_ATTR = 'data-agh-assistant-x';
 
     function validSelector(selector) {
         if (!selector || typeof selector !== 'string') return false;
@@ -74,25 +78,199 @@
         style.textContent = css;
     }
 
+    function hashString(value) {
+        let hash = 2166136261;
+        const text = String(value || '');
+        for (let i = 0; i < text.length; i++) {
+            hash ^= text.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0).toString(36);
+    }
+
+    function extendedId(rule) {
+        return 'x' + hashString(rule.raw + '|' + rule.action + '|' + (rule.style || ''));
+    }
+
+    function buildExtendedCss(rules) {
+        const lines = [];
+        for (const rule of rules || []) {
+            const id = extendedId(rule);
+            if (rule.action === 'style' && rule.style) {
+                lines.push(`[${EXT_ATTR}~="s:${id}"] { ${rule.style} }`);
+            } else {
+                lines.push(`[${EXT_ATTR}~="h:${id}"] { display: none !important; }`);
+            }
+        }
+        return lines.join('\n');
+    }
+
+    function parseTextMatcher(arg) {
+        const text = String(arg || '').trim();
+        if (!text) return null;
+        if (text.startsWith('/')) {
+            const end = text.lastIndexOf('/');
+            if (end <= 0) return null;
+            try {
+                const regex = new RegExp(text.slice(1, end), text.slice(end + 1));
+                return (value) => {
+                    regex.lastIndex = 0;
+                    return regex.test(value);
+                };
+            } catch (_) {
+                return null;
+            }
+        }
+        return (value) => value.includes(text);
+    }
+
+    function parseCssMatcher(arg) {
+        const text = String(arg || '');
+        const colon = text.indexOf(':');
+        if (colon < 1) return null;
+        const prop = text.slice(0, colon).trim().toLowerCase();
+        const expected = text.slice(colon + 1).trim();
+        if (!prop || !expected) return null;
+        if (expected.startsWith('/')) {
+            const test = parseTextMatcher(expected);
+            return test ? { prop, test } : null;
+        }
+        return { prop, test: (value) => value === expected };
+    }
+
+    function clearExtendedMarks() {
+        document.querySelectorAll(`[${EXT_ATTR}]`).forEach((el) => el.removeAttribute(EXT_ATTR));
+    }
+
+    function ensureExtendedObserver(enabled) {
+        if (enabled && !extObserver && document.documentElement) {
+            extObserver = new MutationObserver(() => scheduleExtendedApply());
+            extObserver.observe(document.documentElement, {
+                childList: true,
+                subtree: true,
+                characterData: true,
+                attributes: true,
+                attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'],
+            });
+        } else if (!enabled && extObserver) {
+            extObserver.disconnect();
+            extObserver = null;
+        }
+    }
+
+    function scheduleExtendedApply() {
+        if (extTimer) window.clearTimeout(extTimer);
+        extTimer = window.setTimeout(() => {
+            extTimer = null;
+            if (lastBuilt) applyExtendedRules(lastBuilt);
+        }, 250);
+    }
+
+    function applyExtendedRules(built) {
+        clearExtendedMarks();
+        if (!built || !Array.isArray(built.extended) || !built.extended.length) {
+            ensureExtendedObserver(false);
+            return;
+        }
+        ensureExtendedObserver(true);
+
+        for (const rule of built.extended) {
+            const ext = rule.extended;
+            if (!ext || !ext.base) continue;
+            let nodes;
+            try {
+                nodes = Array.from(document.querySelectorAll(ext.base));
+            } catch (_) {
+                continue;
+            }
+
+            for (const token of ext.tokens) {
+                if (token.type === 'has-text' || token.type === 'not-has-text') {
+                    const test = parseTextMatcher(token.arg);
+                    if (!test) {
+                        nodes = [];
+                        break;
+                    }
+                    nodes = nodes.filter((el) => {
+                        const hit = test(el.textContent || '');
+                        return token.type === 'has-text' ? hit : !hit;
+                    });
+                } else if (token.type === 'matches-css' || token.type === 'not-matches-css') {
+                    const matcher = parseCssMatcher(token.arg);
+                    if (!matcher) {
+                        nodes = [];
+                        break;
+                    }
+                    nodes = nodes.filter((el) => {
+                        let value = '';
+                        try {
+                            value = getComputedStyle(el).getPropertyValue(matcher.prop).trim();
+                        } catch (_) {
+                            /* no computed style */
+                        }
+                        const hit = matcher.test(value);
+                        return token.type === 'matches-css' ? hit : !hit;
+                    });
+                } else if (token.type === 'upward') {
+                    const selector = token.arg.trim();
+                    if (!selector) {
+                        nodes = [];
+                        break;
+                    }
+                    const next = new Set();
+                    for (const el of nodes) {
+                        try {
+                            const up = el.parentElement && el.parentElement.closest(selector);
+                            if (up) next.add(up);
+                        } catch (_) {
+                            /* invalid upward selector */
+                        }
+                    }
+                    nodes = Array.from(next);
+                }
+            }
+
+            const id = extendedId(rule);
+            const mark = rule.action === 'style' && rule.style ? `s:${id}` : `h:${id}`;
+            for (const el of nodes) {
+                const current = (el.getAttribute(EXT_ATTR) || '').split(/\s+/).filter(Boolean);
+                if (!current.includes(mark)) {
+                    current.push(mark);
+                    el.setAttribute(EXT_ATTR, current.join(' '));
+                }
+            }
+        }
+    }
+
     function applyRules(rules) {
         if (!HOST) return { hide: 0, style: 0 };
         const built = AGHCosmeticRules.buildForHost(rules || [], HOST);
-        const css = buildCss(built);
-        const key = css + '|' + built.hide.length + '|' + built.style.length;
+        const css = [buildCss(built), buildExtendedCss(built.extended)]
+            .filter(Boolean)
+            .join('\n');
+        const key = css + '|' + built.hide.length + '|' + built.style.length + '|' + built.extended.length;
         rawRules = Array.isArray(rules) ? rules.slice() : [];
-        if (key === lastAppliedKey) return built;
+        lastBuilt = built;
 
-        lastAppliedKey = key;
-        const seq = ++applySeq;
+        if (key !== lastAppliedKey) {
+            lastAppliedKey = key;
+            const seq = ++applySeq;
+            api.runtime.sendMessage({ type: 'apply-cosmetic-css', css }).then((res) => {
+                if (seq !== applySeq) return;
+                if (!res || !res.ok) applyDomCss(css);
+            }).catch(() => {
+                if (seq === applySeq) applyDomCss(css);
+            });
+        }
 
-        api.runtime.sendMessage({ type: 'apply-cosmetic-css', css }).then((res) => {
-            if (seq !== applySeq) return;
-            if (!res || !res.ok) applyDomCss(css);
-        }).catch(() => {
-            if (seq === applySeq) applyDomCss(css);
-        });
-
-        console.debug('[AGH Cosmetic] %s: %d hide, %d style', HOST, built.hide.length, built.style.length);
+        applyExtendedRules(built);
+        console.debug(
+            '[AGH Cosmetic] %s: %d hide, %d style, %d extended',
+            HOST,
+            built.hide.length,
+            built.style.length,
+            built.extended.length,
+        );
         return built;
     }
 

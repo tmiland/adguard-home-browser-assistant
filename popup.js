@@ -19,6 +19,8 @@
         busy: false,
         cosmeticEnabled: true,
         cosmeticCount: 0,
+        pending: [],
+        pendingTimer: null,
     };
 
     const siteState = $('siteState');
@@ -38,6 +40,10 @@
     const pickBtn = $('pickBtn');
     const cosmeticSettingsBtn = $('cosmeticSettingsBtn');
     const cosmeticStatus = $('cosmeticStatus');
+    const pendingSection = $('pendingSection');
+    const pendingList = $('pendingList');
+    const pendingCount = $('pendingCount');
+    const pendingStatus = $('pendingStatus');
 
     function setStatus(el, text, kind) {
         el.textContent = text;
@@ -309,6 +315,95 @@
         }
     }
 
+    function renderPending() {
+        const now = Date.now();
+        const entries = state.pending.filter((entry) => Number(entry.until) > now);
+        pendingCount.textContent = String(entries.length);
+        if (!entries.length) {
+            pendingSection.hidden = true;
+            pendingList.textContent = '';
+            return;
+        }
+        pendingSection.hidden = false;
+        pendingList.textContent = '';
+        for (const entry of entries) {
+            const row = document.createElement('div');
+            row.className = 'pending-row';
+
+            const host = document.createElement('span');
+            host.className = 'pending-host';
+            host.textContent = entry.host || entry.target || entry.rule;
+            host.title = entry.rule || '';
+
+            const time = document.createElement('span');
+            time.className = 'pending-time';
+            time.textContent = formatDuration(Math.max(0, Number(entry.until) - now));
+
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'pending-cancel';
+            cancel.textContent = 'Cancel';
+            cancel.addEventListener('click', () => { void cancelPending(entry, cancel); });
+
+            row.append(host, time, cancel);
+            pendingList.appendChild(row);
+        }
+    }
+
+    async function loadPending() {
+        if (!api) return;
+        try {
+            const res = await api.runtime.sendMessage({ type: 'get-pending-unblocks' });
+            if (!res || !res.ok) {
+                state.pending = [];
+                renderPending();
+                return;
+            }
+            state.pending = Array.isArray(res.entries) ? res.entries : [];
+            renderPending();
+        } catch (_) {
+            state.pending = [];
+            renderPending();
+        }
+    }
+
+    function tickPending() {
+        if (!state.pending.length) return;
+        const now = Date.now();
+        if (state.pending.some((entry) => Number(entry.until) <= now)) {
+            void loadPending();
+            return;
+        }
+        renderPending();
+    }
+
+    async function cancelPending(entry, button) {
+        if (!api) return;
+        button.disabled = true;
+        setStatus(pendingStatus, 'Cancelling…');
+        try {
+            const res = await api.runtime.sendMessage({
+                type: 'cancel-pending-unblock',
+                id: entry.id,
+            });
+            if (!res || res.session_expired) {
+                sessionLink(pendingStatus);
+                button.disabled = false;
+                return;
+            }
+            if (!res.ok) {
+                setStatus(pendingStatus, res.message || 'Could not cancel the temporary unblock.', 'error');
+                button.disabled = false;
+                return;
+            }
+            setStatus(pendingStatus, res.message || 'Temporary unblock cancelled.', 'success');
+            await loadPending();
+        } catch (e) {
+            setStatus(pendingStatus, 'Could not cancel: ' + (e && e.message ? e.message : String(e)), 'error');
+            button.disabled = false;
+        }
+    }
+
     async function pickElement() {
         if (!api || !state.tabId || state.isAgh) return;
         setStatus(cosmeticStatus, 'Starting the element picker…');
@@ -393,7 +488,10 @@
             await loadSite();
         }
 
-        await Promise.all([loadProtection(), loadStats(), loadCosmetic()]);
+        await Promise.all([loadProtection(), loadStats(), loadCosmetic(), loadPending()]);
+        if (!state.pendingTimer) {
+            state.pendingTimer = window.setInterval(tickPending, 1000);
+        }
     }
 
     toggleBtn.addEventListener('click', () => { void toggleSite(false); });
