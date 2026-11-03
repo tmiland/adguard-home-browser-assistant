@@ -8,6 +8,7 @@
     --line: #dfe7df;
     --green: #4d995f;
     --green-dark: #387aff;
+    --red: #b3261e;
     --shadow: 0 22px 70px rgba(26, 54, 32, 0.14);
 }
 
@@ -21,6 +22,7 @@
         --line: #30363b;
         --green: #75c486;
         --green-dark: #8aa8ff;
+        --red: #ff8a80;
         --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
     }
 }
@@ -103,10 +105,10 @@ h1 {
 .domain {
     margin: 18px 0 0;
     padding: 11px 13px;
-    border: 1px solid color-mix(in srgb, var(--green) 35%, var(--line));
+    border: 1px solid color-mix(in srgb, var(--red) 38%, var(--line));
     border-radius: 10px;
-    background: color-mix(in srgb, var(--green) 8%, transparent);
-    color: var(--green);
+    background: color-mix(in srgb, var(--red) 8%, transparent);
+    color: var(--red);
     font: 600 16px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     overflow-wrap: anywhere;
 }
