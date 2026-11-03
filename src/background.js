@@ -584,7 +584,7 @@ async function handleGetStats() {
  * Picked rules are saved to AGH user rules when possible, otherwise locally.
  */
 
-const COSMETIC_CACHE_TTL = 5 * 60 * 1000;
+const COSMETIC_CACHE_TTL = 60 * 1000;
 const COSMETIC_MAX_LOCAL = 500;
 let cosmeticCache = null;
 let cosmeticCachePromise = null;
@@ -629,12 +629,13 @@ async function rememberCosmeticRules(rules, aghUrl) {
     await browser.storage.local.set({ aghCosmeticCache: cache });
 }
 
-async function cosmeticFilteringStatus(cfg) {
+async function cosmeticFilteringStatus(cfg, force) {
     /* Page loads must not open an AGH tab every time. Direct fetch first; use
-       the bridge at most once every five minutes if direct is blocked. */
+       the bridge at most once every five minutes if direct is blocked. An
+       explicit refresh may use the bridge immediately. */
     const direct = await apiDirect(cfg, '/control/filtering/status');
     if (direct.ok || direct.session_expired) return direct;
-    if (Date.now() - lastCosmeticBridgeAt < 5 * 60 * 1000) return direct;
+    if (!force && Date.now() - lastCosmeticBridgeAt < 5 * 60 * 1000) return direct;
     lastCosmeticBridgeAt = Date.now();
     return aghApi('/control/filtering/status');
 }
@@ -652,7 +653,7 @@ async function fetchAghCosmeticRules(cfg, force) {
             ? cached.rules.slice()
             : [];
 
-        const status = await cosmeticFilteringStatus(cfg);
+        const status = await cosmeticFilteringStatus(cfg, force);
         if (status.ok && status.data && Array.isArray(status.data.user_rules)) {
             const rules = cosmeticRulesOnly(status.data.user_rules);
             await rememberCosmeticRules(status.data.user_rules, cfg.aghUrl);
@@ -776,6 +777,7 @@ async function handleAddCosmetic(msg) {
     }
 
     const view = await getCosmeticForHost(host, false);
+    void refreshCosmeticTabs();
     const message = savedTo === 'agh'
         ? 'Element hidden and saved to AdGuard Home.'
         : 'Element hidden locally' + (aghError ? ` (${aghError})` : '') + '.';
@@ -789,6 +791,108 @@ async function handleAddCosmetic(msg) {
         active: view.active,
         session_expired: !!aghError && /session/i.test(aghError),
     };
+}
+
+async function refreshCosmeticTabs() {
+    let tabs = [];
+    try {
+        tabs = await browser.tabs.query({});
+    } catch (_) {
+        return;
+    }
+    await Promise.allSettled(tabs.map(async (tab) => {
+        if (!tab || typeof tab.id !== 'number') return;
+        let frames = [{ frameId: 0 }];
+        try {
+            const all = await browser.webNavigation.getAllFrames({ tabId: tab.id });
+            if (Array.isArray(all) && all.length) frames = all;
+        } catch (_) {
+            /* Use the top frame if frame enumeration is unavailable. */
+        }
+        await Promise.allSettled(frames.map(async (frame) => {
+            try {
+                await browser.tabs.sendMessage(
+                    tab.id,
+                    { type: 'cosmetic-refresh' },
+                    { frameId: Number(frame.frameId) || 0 },
+                );
+            } catch (_) {
+                /* No content script in this tab/frame. */
+            }
+        }));
+    }));
+}
+
+async function handleGetCosmeticRules(msg) {
+    const cfg = await getConfig();
+    const stored = await browser.storage.local.get({ cosmeticRules: [] });
+    const localRules = Array.isArray(stored.cosmeticRules)
+        ? stored.cosmeticRules.filter((line) => typeof line === 'string' && line.trim())
+        : [];
+    let agh = { rules: [], stale: false, session_expired: false, error: '' };
+    try {
+        agh = await fetchAghCosmeticRules(cfg, !!msg.force);
+    } catch (e) {
+        agh = { rules: [], stale: true, error: String(e) };
+    }
+    if (msg.force) void refreshCosmeticTabs();
+    return {
+        ok: true,
+        enabled: cfg.cosmeticEnabled,
+        aghRules: agh.rules,
+        localRules,
+        stale: !!agh.stale,
+        session_expired: !!agh.session_expired,
+        error: agh.error || '',
+    };
+}
+
+async function handleRemoveCosmetic(msg) {
+    const rule = String(msg.rule || '').trim();
+    if (!rule || rule.length > 2000 || !hasCosmeticMarker(rule)) {
+        return { ok: false, message: 'Invalid cosmetic rule.' };
+    }
+
+    if (msg.source === 'local') {
+        const stored = await browser.storage.local.get({ cosmeticRules: [] });
+        const rules = Array.isArray(stored.cosmeticRules)
+            ? stored.cosmeticRules.filter((line) => typeof line === 'string' && line.trim())
+            : [];
+        if (!rules.includes(rule)) {
+            return { ok: true, message: 'Rule was not in the local list.' };
+        }
+        await browser.storage.local.set({ cosmeticRules: rules.filter((line) => line !== rule) });
+        await refreshCosmeticTabs();
+        return { ok: true, message: 'Removed the local rule.' };
+    }
+
+    const cfg = await getConfig();
+    const status = await aghApi('/control/filtering/status');
+    if (status.session_expired) {
+        return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+    }
+    if (!status.ok || !status.data || !Array.isArray(status.data.user_rules)) {
+        return { ok: false, message: 'Could not read AdGuard Home filtering rules.' };
+    }
+    const rules = status.data.user_rules.slice();
+    if (!rules.includes(rule)) {
+        await refreshCosmeticTabs();
+        return { ok: true, message: 'The rule is no longer in AdGuard Home.' };
+    }
+    const next = rules.filter((line) => line !== rule);
+    const post = await aghApi('/control/filtering/set_rules', {
+        method: 'POST',
+        body: { rules: next },
+    });
+    if (post.session_expired) {
+        return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+    }
+    if (!post.ok) {
+        return { ok: false, message: 'AdGuard Home rejected the rule removal.' };
+    }
+    await rememberCosmeticRules(next, cfg.aghUrl);
+    await refreshCosmeticTabs();
+    return { ok: true, message: 'Removed the rule from AdGuard Home.' };
 }
 
 /* Injected CSS is applied at user-origin so page CSP cannot block it. */
@@ -1008,6 +1112,22 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         handleGetCosmetic(msg).then(sendResponse).catch((e) => sendResponse({
             ok: false,
             message: 'Could not read element-hiding rules: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'get-cosmetic-rules') {
+        handleGetCosmeticRules(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not list element-hiding rules: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'remove-cosmetic') {
+        handleRemoveCosmetic(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not remove the element-hiding rule: ' + (e && e.message ? e.message : String(e)),
         }));
         return true;
     }

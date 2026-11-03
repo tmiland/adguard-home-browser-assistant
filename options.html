@@ -61,8 +61,19 @@
                 <label class="field">
                     <span>Local element-hiding rules</span>
                     <textarea id="cosmeticRules" rows="5" spellcheck="false" placeholder="example.com##.ad-banner&#10;example.com#$#body { overflow: auto !important; }"></textarea>
-                    <small>One rule per line. These stay in this browser. Rules saved to AGH are read from its user rules automatically.</small>
+                    <small>One rule per line. These stay in this browser. Picked rules saved to AGH are listed below instead.</small>
                 </label>
+
+                <div class="rulesblock">
+                    <div class="ruleshead">
+                        <span>Rules from AdGuard Home</span>
+                        <button class="button button-ghost button-small" id="refreshRulesBtn" type="button">Refresh</button>
+                    </div>
+                    <div class="rulelist" id="aghRules">
+                        <p class="rule-empty">Loading…</p>
+                    </div>
+                    <p class="hint" id="aghRulesStatus" role="status" aria-live="polite"></p>
+                </div>
 
                 <div class="divider"></div>
 
@@ -78,7 +89,7 @@
         </main>
 
         <footer class="footer">
-            <span>AdGuard Home Browser Assistant 0.4.1</span>
+            <span>AdGuard Home Browser Assistant 0.4.2</span>
             <span class="dot">·</span>
             <a href="https://github.com/tmiland/adguard-home-browser-assistant" target="_blank" rel="noopener noreferrer">GitHub</a>
         </footer>

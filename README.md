@@ -45,9 +45,16 @@ the rule is visible and editable in AGH while the browser does the hiding.
 
 - Toolbar **Pick element to hide** (or right-click → **Hide element with
   AdGuard Home Assistant**) starts a picker: hover to highlight, click the
-  element, edit the generated selector if needed, then **Hide**.
+  element, edit the generated selector if needed, then **Hide**. It hides only
+  the selected element by default; tick **Hide all matching elements** to use a
+  broader selector.
 - Picked rules are saved to AGH user rules by default (`example.com##.ad-banner`).
-  If the AGH session is unavailable, the rule is saved locally instead.
+  If the AGH session is unavailable, the rule is saved locally instead. Rules
+  saved to AGH appear under **Rules from AdGuard Home** in Settings, not in the
+  local rules box.
+- Settings lists AGH cosmetic rules with **Remove** buttons and **Refresh**;
+  use Refresh after editing rules directly in the AGH UI. Removing a rule
+  through the assistant also refreshes open tabs.
 - Global CSS-injection rules (`example.com#$#body { ... }`) and exceptions
   (`#@#`, `#@$#`) work too. Extended selectors that Firefox's CSS engine
   supports (for example `:has()`) are applied; unsupported ones are skipped.

@@ -13,6 +13,9 @@
     const cosmeticEnabled = $('cosmeticEnabled');
     const cosmeticSaveToAgh = $('cosmeticSaveToAgh');
     const cosmeticRules = $('cosmeticRules');
+    const aghRulesEl = $('aghRules');
+    const aghRulesStatus = $('aghRulesStatus');
+    const refreshRulesBtn = $('refreshRulesBtn');
     const adminLink = $('adminLink');
     const status = $('status');
     const testBtn = $('testBtn');
@@ -31,6 +34,98 @@
         status.textContent = text;
         if (state) status.dataset.state = state;
         else delete status.dataset.state;
+    }
+
+    function setRulesStatus(text, state) {
+        aghRulesStatus.textContent = text;
+        if (state) aghRulesStatus.dataset.state = state;
+        else delete aghRulesStatus.dataset.state;
+    }
+
+    function displayableRule(rule) {
+        const text = String(rule || '').trim();
+        return !!text && !text.startsWith('!') && !/^#+$/.test(text);
+    }
+
+    function renderAghRules(rules) {
+        aghRulesEl.textContent = '';
+        const list = (Array.isArray(rules) ? rules : []).filter(displayableRule);
+        if (!list.length) {
+            const empty = document.createElement('p');
+            empty.className = 'rule-empty';
+            empty.textContent = 'No cosmetic rules in AdGuard Home user rules.';
+            aghRulesEl.appendChild(empty);
+            return;
+        }
+        for (const rule of list) {
+            const row = document.createElement('div');
+            row.className = 'rule-row';
+            const code = document.createElement('code');
+            code.textContent = rule;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'rule-remove';
+            button.textContent = 'Remove';
+            button.addEventListener('click', () => { void removeAghRule(rule, button); });
+            row.appendChild(code);
+            row.appendChild(button);
+            aghRulesEl.appendChild(row);
+        }
+    }
+
+    async function loadAghRules(force) {
+        if (!api) return;
+        refreshRulesBtn.disabled = true;
+        setRulesStatus('Reading AdGuard Home rules…');
+        try {
+            const res = await api.runtime.sendMessage({
+                type: 'get-cosmetic-rules',
+                force: !!force,
+            });
+            if (!res || !res.ok) {
+                setRulesStatus((res && res.message) || 'Could not read AdGuard Home rules.', 'error');
+                return;
+            }
+            const displayRules = (Array.isArray(res.aghRules) ? res.aghRules : []).filter(displayableRule);
+            renderAghRules(displayRules);
+            const count = displayRules.length;
+            if (res.session_expired) {
+                setRulesStatus('AdGuard Home session expired; showing cached rules.', 'error');
+            } else if (res.stale) {
+                setRulesStatus('AdGuard Home is unreachable; showing cached rules.');
+            } else {
+                setRulesStatus(count + (count === 1 ? ' rule from AdGuard Home.' : ' rules from AdGuard Home.'));
+            }
+        } catch (e) {
+            setRulesStatus('Could not read AdGuard Home rules: ' + (e && e.message ? e.message : String(e)), 'error');
+        } finally {
+            refreshRulesBtn.disabled = false;
+        }
+    }
+
+    async function removeAghRule(rule, button) {
+        button.disabled = true;
+        setRulesStatus('Removing from AdGuard Home…');
+        try {
+            const res = await api.runtime.sendMessage({
+                type: 'remove-cosmetic',
+                source: 'agh',
+                rule,
+            });
+            const error = !res || !res.ok
+                ? ((res && res.message) || 'Could not remove the rule.')
+                : '';
+            /* Always re-read the real AGH state; a cache or a partial failure
+               must not leave the list showing a rule that is already gone. */
+            await loadAghRules(true);
+            if (error) {
+                setRulesStatus(error, 'error');
+                button.disabled = false;
+            }
+        } catch (e) {
+            setRulesStatus('Could not remove the rule: ' + (e && e.message ? e.message : String(e)), 'error');
+            button.disabled = false;
+        }
     }
 
     function normalizeAghUrl(value) {
@@ -71,6 +166,7 @@
         cosmeticSaveToAgh.checked = cfg.cosmeticSaveToAgh !== false;
         cosmeticRules.value = (Array.isArray(cfg.cosmeticRules) ? cfg.cosmeticRules : []).join('\n');
         updateAdminLink();
+        await loadAghRules(false);
     }
 
     form.addEventListener('submit', async (e) => {
@@ -96,6 +192,7 @@
         aghUrl.value = url;
         updateAdminLink();
         setStatus('Saved.', 'success');
+        void loadAghRules(true);
     });
 
     testBtn.addEventListener('click', async () => {
@@ -139,5 +236,6 @@
     });
 
     aghUrl.addEventListener('input', updateAdminLink);
+    refreshRulesBtn.addEventListener('click', () => { void loadAghRules(true); });
     load().catch((e) => setStatus('Could not load settings: ' + (e && e.message ? e.message : String(e)), 'error'));
 })();

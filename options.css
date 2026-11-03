@@ -94,3 +94,91 @@
 .actions {
     margin-top: 2px;
 }
+
+.rulesblock {
+    display: grid;
+    gap: 8px;
+}
+
+.ruleshead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.ruleshead > span {
+    font-size: 13.5px;
+    font-weight: 650;
+}
+
+.button-small {
+    padding: 6px 10px;
+    font-size: 12.5px;
+}
+
+.rulelist {
+    max-height: 230px;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--bg2);
+}
+
+.rule-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+}
+
+.rule-row:last-child {
+    border-bottom: 0;
+}
+
+.rule-row code {
+    flex: 1;
+    min-width: 0;
+    color: var(--ink);
+    font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+}
+
+.rule-remove {
+    flex: none;
+    appearance: none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    padding: 3px 7px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.rule-remove:hover {
+    border-color: #c2413b;
+    color: #c2413b;
+}
+
+.rule-remove:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.rule-empty {
+    margin: 0;
+    padding: 11px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.hint[data-state="error"] {
+    color: #c2413b;
+}
+
+.hint[data-state="success"] {
+    color: var(--green);
+}

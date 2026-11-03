@@ -340,7 +340,7 @@
                 <div class="label">CSS selector</div>
                 <input type="text" class="selector" spellcheck="false" autocomplete="off">
                 <div class="meta"></div>
-                <label class="checkrow"><input type="checkbox" class="all" checked> Hide all matching elements</label>
+                <label class="checkrow"><input type="checkbox" class="all"> Hide all matching elements</label>
                 <div class="error" role="alert"></div>
                 <div class="actions">
                     <button class="hide" type="button" data-action="apply">Hide</button>
