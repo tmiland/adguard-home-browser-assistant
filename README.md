@@ -1,9 +1,9 @@
 # AdGuard Home Browser Assistant
 
-An unofficial Firefox companion for **AdGuard Home**: see the filtering state
-of the current tab, block or unblock it (for everyone or just this client),
-pause protection, view AGH stats, and get an automatic HTTPS block page — using
-your existing logged-in AGH session.
+An unofficial Firefox companion for **AdGuard Home (AGH)**: see the filtering
+state of the current tab, block or unblock the current site (for everyone or
+just this client), pause protection, view AGH stats, and get an automatic HTTPS
+block page — using your existing logged-in AGH session.
 
 It does not filter traffic itself. AGH does the DNS filtering; this extension is
 the browser-side control surface.
@@ -23,8 +23,8 @@ the browser-side control surface.
 - **Protection**: on/paused, pause for 30s / 1m / 5m / 15m, resume. This calls
   AGH's `/control/protection` with a duration in milliseconds.
 - **Stats**: total queries and blocked count from `/control/stats`.
-- **Temporary unblocks**: active temporary rules with a live countdown and
-  **Cancel**.
+- **Temporary unblocks**: active temporary rules, each with a live countdown
+  and a **Cancel** button.
 - Links to the AGH query log, AGH home, and Settings.
 
 ### Automatic HTTPS block page
@@ -32,15 +32,16 @@ the browser-side control surface.
 Top-level navigation errors are caught with `webNavigation.onErrorOccurred`.
 The extension confirms with AGH `check_host` (and the latest query-log entry for
 CNAME/IP/cached cases), then replaces the browser error with `blocked.html`.
-No CA, no TLS interception, no VIP/NAT. The block page has Unblock, Unblock for
-this client only, and **Temporarily unblock** (30 seconds / 1 / 5 / 15 minutes),
-and polls through AGH's asynchronous ~6 s filter rebuild. The temporary rule is
-removed by the background after the chosen duration; if the browser closes first,
-cleanup resumes on the next extension start.
+No CA, no TLS interception, no VIP/NAT. The block page offers **Unblock**,
+**Unblock for this client only**, and **Temporarily unblock** (30 seconds, 1
+minute, 5 minutes, or 15 minutes). It polls through AGH's asynchronous ~6 s
+filter rebuild. The temporary rule is removed by the background after the
+chosen duration; if the browser closes first, cleanup resumes on the next
+extension start.
 
 ### Element hiding
 
-AdGuard Home understands cosmetic rules such as `example.com##.ad-banner` and
+AdGuard Home accepts cosmetic rules such as `example.com##.ad-banner` and
 stores them in its user rules, but DNS filtering cannot inject CSS. The
 assistant reads those rules back and applies the matching CSS in Firefox, so
 the rule is visible and editable in AGH while the browser does the hiding.
@@ -58,12 +59,12 @@ the rule is visible and editable in AGH while the browser does the hiding.
   use Refresh after editing rules directly in the AGH UI. Removing a rule
   through the assistant also refreshes open tabs.
 - Global CSS-injection rules (`example.com#$#body { ... }`) and exceptions
-  (`#@#`, `#@$#`) work too. Native CSS selectors (including `:has()`) are
+  (`#@#`, `#@$#`) also work. Native CSS selectors (including `:has()`) are
   applied directly. A small extended-CSS engine also supports `:remove()`,
   `:style()`, `:has-text()`, `:upward()`, `:matches-css()` and
   `:not(:has-text(...))`; other extended selectors are skipped.
-- Settings has local rules for this browser and a switch to stop saving picked
-  rules to AGH.
+- Settings holds local rules for this browser and a switch to stop saving
+  picked rules to AGH.
 
 AGH user rules are read through the same logged-in session; local rules are
 stored with `browser.storage.local`. Scriptlet/JS rules (`#%#`, `#@%#`) are
@@ -71,11 +72,11 @@ deliberately not executed.
 
 ### Query-log buttons
 
-The original query-log **Unblock** buttons remain: blocked rows get a green
-button and there is a floating **Quick unblock** widget. It is branded
-**AdGuard Home Browser Assistant**, can be collapsed (the state is remembered),
-accepts a URL or domain and normalizes it, and adds the allowlist rule, clears
-AGH's cache, and polls `check_host` until the rebuild finishes.
+The query-log **Unblock** buttons are still available: each blocked row gets an
+**Unblock** button, and there is a floating **Quick unblock** widget. It is branded
+**AdGuard Home Browser Assistant** and can be collapsed (the state is
+remembered). It accepts a URL or domain, normalizes it, adds the allowlist rule,
+clears AGH's cache, and polls `check_host` until the rebuild finishes.
 
 ## Existing AGH session
 
@@ -99,12 +100,12 @@ session host. Set it in Settings if your AGH UI lives elsewhere.
    the automatic block page; use **Pick element to hide** or the page context
    menu for cosmetic rules.
 
-Permanent installation: self-hosted signing or AMO (`web-ext build` +
-`web-ext sign`).
+For permanent installation, sign it yourself or publish through AMO
+(`web-ext build` and `web-ext sign`).
 
 ## Rule syntax
 
-AGH uses Adblock-style DNS rules
+AGH uses Adblock-style rules
 ([syntax reference](https://adguard-dns.io/kb/general/dns-filtering-syntax/)).
 The assistant uses:
 
@@ -112,18 +113,19 @@ The assistant uses:
 - `@@||example.com^$important` — an allowlist exception for all clients.
 - `@@||example.com^$client='192.168.1.2'` — the same exception for one client.
 - `||example.com^$important` — a block rule for the site.
-- `example.com##.ad-banner` — hide matching elements on the site and subdomains.
+- `example.com##.ad-banner` — hide matching elements for the site and its
+  subdomains.
 - `example.com#@#.ad-banner` — cancel that hide rule for the site.
 - `example.com#$#body { overflow: auto !important; }` — inject a style rule.
 - `example.com##.ad:has-text(/sponsor/):remove()` — extended text match.
-- `example.com##.ad:upward(.feed)` — hide the matching ancestor.
+- `example.com##.ad:upward(.feed)` — hide the matching ancestor element.
 - `example.com##.ad:style(border: 1px solid red !important)` — extended style.
 - `example.com##.ad:matches-css(display: none):remove()` — computed-style match.
 
 When a site is blocked by a **parent-domain** rule (e.g. `||memfault.com^` blocks
 `chunks.memfault.com`), the assistant unblocks the **rule’s domain**
 (`@@||memfault.com^$important`), not just the current hostname, so every
-subdomain of the site works.
+subdomain of that domain works.
 
 ## Limitations
 
@@ -141,23 +143,27 @@ subdomain of the site works.
 - Cosmetic rules are read from AGH **user rules** and the local rules box; rules
   inside subscribed filter lists are not imported. Scriptlet/JS rules are not
   executed. The extended-CSS engine covers the common selectors above, but not
-  every AdGuard extension (for example `:matches-css-before` is skipped).
+  every AdGuard extended selector (for example `:matches-css-before` is skipped).
 - On pages with a strict Content-Security-Policy, the assistant injects CSS at
   user origin (`tabs.insertCSS`) so page CSP does not block the rules. The
   picker overlay uses a separate shadow-root UI.
 
 ## Files
 
-- `src/background.js` — navigation errors, AGH API, block/unblock/protection/stats, cosmetic cache.
+- `src/background.js` — navigation errors, AGH API,
+  block/unblock/protection/stats, cosmetic cache.
 - `src/rule-utils.js` — pure allow/block rule builder and duration labels (tested).
-- `src/cosmetic-rules.js` — Adblock cosmetic-rule parser/matcher, including extended selectors.
+- `src/cosmetic-rules.js` — Adblock cosmetic-rule parser/matcher, including
+  extended selectors.
 - `src/cosmetic.js` — element hiding, extended-CSS runtime, picker content script.
 - `src/api-bridge.js` — same-origin AGH API bridge in an AGH tab.
-- `src/content.js` — query-log buttons/widget.
+- `src/content.js` — query-log buttons and Quick unblock widget.
 - `popup.html|css|js` — Browser Assistant toolbar popup.
 - `blocked.html|css|js` — automatic block page.
 - `options.html|css|js` — settings.
-- `test/cosmetic-rules.test.js` — parser/matcher tests (`node --test test/`).
+- `test/cosmetic-rules.test.js` — cosmetic parser/matcher tests.
+- `test/rule-utils.test.js` — allow/block rule and duration tests.
+- Run all tests with `node --test test/`.
 
 ## License
 
