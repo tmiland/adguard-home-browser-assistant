@@ -15,6 +15,17 @@ function normalizeHost(value) {
     return host;
 }
 
+function targetFromRule(ruleText, host) {
+    let t = String(ruleText || '').trim();
+    if (!t || t.startsWith('/')) return host;
+    t = t.replace(/^@@/, '').replace(/^\|\|/, '').replace(/^\|/, '');
+    t = t.split('^')[0].split('$')[0].toLowerCase().replace(/\.$/, '');
+    if (!t || t.includes('*') || t.includes('/') || t.includes(':')) return host;
+    if (!/^[a-z0-9.-]+$/.test(t) || t.startsWith('.') || t.includes('..')) return host;
+    if (host === t || host.endsWith('.' + t)) return t;
+    return host;
+}
+
 function hostFromUrl(value) {
     try {
         const u = new URL(value);
@@ -217,7 +228,7 @@ async function findBlockInfo(host) {
     if (checkReason === 'NotFilteredWhiteList') {
         /* An explicit allowlist rule wins; do not let an older query-log
            blocked entry resurrect the block page after Unblock. */
-        return { blocked: false, reason: '', rule: '', client: '' };
+        return { blocked: false, reason: '', rule: '', client: '', target: host };
     }
     if (/^Filtered/.test(checkReason)) {
         blocked = true;
@@ -249,7 +260,7 @@ async function findBlockInfo(host) {
                 '&client=' + encodeURIComponent(latest.client),
             );
             if (clientCheck.ok && clientCheck.data && clientCheck.data.reason === 'NotFilteredWhiteList') {
-                return { blocked: false, reason: '', rule: '', client: latest.client };
+                return { blocked: false, reason: '', rule: '', client: latest.client, target: host };
             }
         }
         if (!blocked && recent && /^Filtered/.test(latest.reason || '')) {
@@ -258,7 +269,7 @@ async function findBlockInfo(host) {
             rule = latest.rule;
         }
     }
-    return { blocked, reason, rule, client };
+    return { blocked, reason, rule, client, target: targetFromRule(rule, host) };
 }
 
 async function resolveClient(host, cfg) {
@@ -299,14 +310,31 @@ async function handleToggle(msg) {
         return { ok: false, message: 'Could not read AdGuard Home filtering rules.' };
     }
 
+    let target = host;
+    if (action === 'unblock') {
+        const requested = normalizeHost(msg.target);
+        if (requested && (host === requested || host.endsWith('.' + requested))) {
+            target = requested;
+        } else {
+            const info = await findBlockInfo(host);
+            target = info.target || host;
+        }
+    }
+
     const rules = status.data.user_rules.slice();
     const escaped = escapeClient(client);
-    const blockRule = msg.clientOnly ? `||${host}^$client='${escaped}'` : `||${host}^$important`;
-    const allowRule = msg.clientOnly ? `@@||${host}^$client='${escaped}'` : `@@||${host}^$important`;
-    const removeRule = action === 'block' ? allowRule : blockRule;
-    const addRule = action === 'block' ? blockRule : allowRule;
+    const blockRule = msg.clientOnly ? `||${target}^$client='${escaped}'` : `||${target}^$important`;
+    const allowRule = msg.clientOnly ? `@@||${target}^$client='${escaped}'` : `@@||${target}^$important`;
+    const hostBlockRule = msg.clientOnly ? `||${host}^$client='${escaped}'` : `||${host}^$important`;
+    const hostAllowRule = msg.clientOnly ? `@@||${host}^$client='${escaped}'` : `@@||${host}^$important`;
 
-    const next = rules.filter((r) => r !== removeRule);
+    let removeRules;
+    if (action === 'block') {
+        removeRules = [hostAllowRule];
+    } else {
+        removeRules = [blockRule, hostBlockRule];
+    }
+    const next = rules.filter((r) => !removeRules.includes(r));
     if (!next.includes(addRule)) next.push(addRule);
 
     if (JSON.stringify(next) !== JSON.stringify(rules)) {
@@ -331,6 +359,7 @@ async function handleToggle(msg) {
                     ok: true,
                     blocked: action === 'block',
                     client,
+                    target,
                     message: action === 'block' ? 'Blocked.' : 'Unblocked.',
                 };
             }
@@ -341,6 +370,7 @@ async function handleToggle(msg) {
         ok: false,
         pending: true,
         client,
+        target,
         message: 'AdGuard is still rebuilding its filters. Wait a few seconds and try again.',
     };
 }
@@ -364,6 +394,7 @@ async function handleGetSite(msg) {
         reason: info.reason || '',
         rule: info.rule || '',
         client: info.client || cfg.clientName || '',
+        target: info.target || host,
     };
 }
 
@@ -441,6 +472,7 @@ async function handleNavigationError(details) {
     const params = new URLSearchParams({
         url: details.url,
         host,
+        target: info.target || host,
         client: info.client || '',
         reason: info.reason || '',
         rule: info.rule || '',

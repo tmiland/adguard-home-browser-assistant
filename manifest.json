@@ -1,9 +1,9 @@
 {
   "name": "AdGuard Home Browser Assistant",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "manifest_version": 2,
   "description": "Unofficial browser assistant for AdGuard Home: current-site status, block/unblock (all or this client), protection pause, stats, and an automatic HTTPS block page.",
-  "homepage_url": "https://github.com/tmiland/agquery-unblock",
+  "homepage_url": "https://github.com/tmiland/adguard-home-browser-assistant",
   "browser_action": {
     "browser_style": true,
     "default_title": "AdGuard Home Browser Assistant",

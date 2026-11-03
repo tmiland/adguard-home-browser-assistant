@@ -62,6 +62,22 @@ session host. Set it in Settings if your AGH UI lives elsewhere.
 Permanent installation: self-hosted signing or AMO (`web-ext build` +
 `web-ext sign`).
 
+## Rule syntax
+
+AGH uses Adblock-style DNS rules
+([syntax reference](https://adguard-dns.io/kb/general/dns-filtering-syntax/)).
+The assistant uses:
+
+- `||example.com^` — the domain and all subdomains.
+- `@@||example.com^$important` — an allowlist exception for all clients.
+- `@@||example.com^$client='192.168.1.2'` — the same exception for one client.
+- `||example.com^$important` — a block rule for the site.
+
+When a site is blocked by a **parent-domain** rule (e.g. `||memfault.com^` blocks
+`chunks.memfault.com`), the assistant unblocks the **rule’s domain**
+(`@@||memfault.com^$important`), not just the current hostname, so every
+subdomain of the site works.
+
 ## Limitations
 
 - Firefox only (Manifest v2). Per-browser, not network-wide; phones/TVs/IoT do

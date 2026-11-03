@@ -13,6 +13,7 @@
         host: '',
         blocked: false,
         client: '',
+        target: '',
         aghUrl: DEFAULT_AGH,
         isAgh: false,
         busy: false,
@@ -72,11 +73,13 @@
     function updateSite(info) {
         state.blocked = !!info.blocked;
         state.client = info.client || state.client || '';
+        state.target = info.target || state.host;
         setSiteBadge(state.blocked);
         setSiteButtons(state.blocked);
         const rows = [];
         if (info.reason) rows.push(info.reason);
         if (info.rule) rows.push(info.rule);
+        if (state.target && state.target !== state.host) rows.push('unblocks ' + state.target + ' and subdomains');
         if (state.client) rows.push('client ' + state.client);
         detailsEl.textContent = rows.join(' · ');
     }
@@ -120,6 +123,7 @@
                 action,
                 clientOnly: !!clientOnly,
                 client: state.client,
+                target: state.target || state.host,
             });
             if (!res || res.session_expired) {
                 sessionLink(siteStatus);
@@ -278,6 +282,7 @@
         state.tabId = tab && tab.id ? tab.id : null;
         state.url = debugHost ? `https://${debugHost}/` : ((tab && tab.url) || '');
         state.host = debugHost || hostOf(state.url) || '';
+        state.target = state.host;
 
         const aghHost = hostOf(state.aghUrl);
         state.isAgh = !!state.host && state.host === aghHost;

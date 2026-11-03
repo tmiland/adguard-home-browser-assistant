@@ -6,6 +6,7 @@
 
     const host = (params.get('host') || '').toLowerCase().replace(/\.$/, '');
     let client = (params.get('client') || '').trim();
+    const ruleTarget = (params.get('target') || '').trim().toLowerCase().replace(/\.$/, '');
     const reason = (params.get('reason') || '').trim();
     const rule = (params.get('rule') || '').trim();
 
@@ -27,6 +28,7 @@
     const site = $('site');
     const clientEl = $('client');
     const noteClient = $('noteClient');
+    const noteDomain = $('noteDomain');
     const status = $('status');
     const adminLink = $('adminLink');
     const btnAll = $('unblockAll');
@@ -49,6 +51,7 @@
         const label = client || 'unknown — set it in options';
         clientEl.textContent = label;
         noteClient.textContent = client || 'this client';
+        if (noteDomain) noteDomain.textContent = (ruleTarget || host) + ' and its subdomains';
     }
 
     function setSessionExpired() {
@@ -84,6 +87,7 @@
                 url: original,
                 clientOnly: !!clientOnly,
                 client,
+                target: ruleTarget || host,
             });
 
             if (!res || res.session_expired) {
