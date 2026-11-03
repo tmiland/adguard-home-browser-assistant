@@ -1,5 +1,7 @@
 # AdGuard Home Browser Assistant
 
+[![Sponsor @tmiland](https://img.shields.io/badge/Sponsor-%40tmiland-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/tmiland)
+
 An unofficial Firefox companion for **AdGuard Home (AGH)**: see the filtering
 state of the current tab, block or unblock the current site (for everyone or
 just this client), pause protection, view AGH stats, and get an automatic HTTPS
@@ -167,6 +169,17 @@ subdomain of that domain works.
 - `test/cosmetic-rules.test.js` — cosmetic parser/matcher tests.
 - `test/rule-utils.test.js` — allow/block rule and duration tests.
 - Run all tests with `node --test test/`.
+
+## Support
+
+If this extension saves you time, you can support its development via
+[GitHub Sponsors](https://github.com/sponsors/tmiland).
+
+## AI assistance
+
+This extension was coded by **DeepSeek V4.1 Flash**, an AI coding agent running
+in OpenCode, with direction, testing, and review from the maintainer. Review the
+source before deploying it.
 
 ## License
 
