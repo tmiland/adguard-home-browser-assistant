@@ -1,8 +1,8 @@
 {
   "name": "AdGuard Home Browser Assistant",
-  "version": "0.3.1",
+  "version": "0.4.1",
   "manifest_version": 2,
-  "description": "Unofficial browser assistant for AdGuard Home: current-site status, block/unblock (all or this client), protection pause, stats, and an automatic HTTPS block page.",
+  "description": "Unofficial browser assistant for AdGuard Home: current-site block/unblock (permanent or temporary), protection pause, stats, element hiding with a picker, and an automatic HTTPS block page.",
   "homepage_url": "https://github.com/tmiland/adguard-home-browser-assistant",
   "browser_action": {
     "browser_style": true,
@@ -15,6 +15,7 @@
   },
   "background": {
     "scripts": [
+      "src/cosmetic-rules.js",
       "src/background.js"
     ],
     "persistent": true
@@ -27,6 +28,7 @@
     "storage",
     "tabs",
     "webNavigation",
+    "contextMenus",
     "<all_urls>"
   ],
   "content_scripts": [
@@ -46,6 +48,17 @@
         "src/content.css"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/cosmetic-rules.js",
+        "src/cosmetic.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
     }
   ],
   "web_accessible_resources": [
@@ -55,7 +68,7 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "agquery-unblock@tmiland.com",
+      "id": "adguard-home-browser-assistant@tmiland.com",
       "strict_min_version": "142.0",
       "data_collection_permissions": {
         "required": [

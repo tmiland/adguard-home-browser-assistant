@@ -129,6 +129,21 @@ section {
     overflow-wrap: anywhere;
 }
 
+.hint {
+    margin: 7px 0 0;
+    color: var(--muted);
+    font-size: 11.5px;
+}
+
+.cosmetic .actions {
+    margin-top: 9px;
+}
+
+.cosmetic .btn {
+    padding: 7px 9px;
+    font-size: 12px;
+}
+
 .badge {
     display: inline-flex;
     align-items: center;

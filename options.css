@@ -20,7 +20,8 @@
 }
 
 .field input[type="url"],
-.field input[type="text"] {
+.field input[type="text"],
+.field textarea {
     width: 100%;
     border: 1px solid var(--line);
     border-radius: 9px;
@@ -31,10 +32,30 @@
     font-size: 14px;
 }
 
-.field input:focus {
+.field textarea {
+    min-height: 108px;
+    resize: vertical;
+    font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.field input:focus,
+.field textarea:focus {
     outline: 2px solid color-mix(in srgb, var(--green) 55%, transparent);
     outline-offset: 1px;
     border-color: var(--green);
+}
+
+.hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.divider {
+    height: 1px;
+    margin: 2px 0;
+    background: var(--line);
 }
 
 .field small {

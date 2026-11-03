@@ -17,6 +17,8 @@
         aghUrl: DEFAULT_AGH,
         isAgh: false,
         busy: false,
+        cosmeticEnabled: true,
+        cosmeticCount: 0,
     };
 
     const siteState = $('siteState');
@@ -31,6 +33,11 @@
     const resumeBtn = $('resumeBtn');
     const protectionStatus = $('protectionStatus');
     const autoBadge = $('autoBadge');
+    const cosmeticState = $('cosmeticState');
+    const cosmeticHint = $('cosmeticHint');
+    const pickBtn = $('pickBtn');
+    const cosmeticSettingsBtn = $('cosmeticSettingsBtn');
+    const cosmeticStatus = $('cosmeticStatus');
 
     function setStatus(el, text, kind) {
         el.textContent = text;
@@ -249,6 +256,83 @@
         }
     }
 
+    async function loadCosmetic() {
+        if (!api || !state.host || state.isAgh) {
+            cosmeticState.textContent = '—';
+            cosmeticState.className = 'badge badge-neutral';
+            cosmeticHint.textContent = state.isAgh
+                ? 'Not applied to the AdGuard Home interface.'
+                : 'Open a website tab to hide elements.';
+            pickBtn.disabled = true;
+            return;
+        }
+
+        setStatus(cosmeticStatus, 'Reading element-hiding rules…');
+        try {
+            const res = await api.runtime.sendMessage({ type: 'get-cosmetic', host: state.host });
+            if (!res || !res.ok) {
+                cosmeticState.textContent = 'Unknown';
+                cosmeticState.className = 'badge badge-neutral';
+                cosmeticHint.textContent = 'Element-hiding rules are unavailable.';
+                pickBtn.disabled = true;
+                setStatus(cosmeticStatus, res && res.message ? res.message : '', 'error');
+                return;
+            }
+            state.cosmeticEnabled = res.enabled !== false;
+            state.cosmeticCount = Number(res.active) || 0;
+            if (!state.cosmeticEnabled) {
+                cosmeticState.textContent = 'Off';
+                cosmeticState.className = 'badge badge-neutral';
+                cosmeticHint.textContent = 'Element hiding is turned off in Settings.';
+            } else if (state.cosmeticCount > 0) {
+                cosmeticState.textContent = state.cosmeticCount + (state.cosmeticCount === 1 ? ' rule' : ' rules');
+                cosmeticState.className = 'badge badge-allowed';
+                cosmeticHint.textContent = 'Active CSS rules for this site, from AdGuard Home and local rules.';
+            } else {
+                cosmeticState.textContent = 'None';
+                cosmeticState.className = 'badge badge-neutral';
+                cosmeticHint.textContent = 'No element-hiding rules match this site yet.';
+            }
+            pickBtn.disabled = !state.cosmeticEnabled || !state.tabId;
+            if (res.session_expired) {
+                setStatus(cosmeticStatus, 'AGH session expired; showing cached and local rules.', 'error');
+            } else if (res.stale) {
+                setStatus(cosmeticStatus, 'AGH is unreachable; showing cached and local rules.');
+            } else {
+                setStatus(cosmeticStatus, '');
+            }
+        } catch (e) {
+            cosmeticState.textContent = 'Unknown';
+            cosmeticState.className = 'badge badge-neutral';
+            pickBtn.disabled = true;
+            setStatus(cosmeticStatus, 'Could not read element-hiding rules: ' + (e && e.message ? e.message : String(e)), 'error');
+        }
+    }
+
+    async function pickElement() {
+        if (!api || !state.tabId || state.isAgh) return;
+        setStatus(cosmeticStatus, 'Starting the element picker…');
+        try {
+            const res = await api.tabs.sendMessage(state.tabId, { type: 'cosmetic-pick' }, { frameId: 0 });
+            if (!res || !res.ok) {
+                setStatus(cosmeticStatus, (res && res.message) || 'Reload the page and try again.', 'error');
+                return;
+            }
+            window.close();
+        } catch (e) {
+            setStatus(cosmeticStatus, 'Could not start the picker. Reload the page and try again.', 'error');
+        }
+    }
+
+    function openCosmeticSettings() {
+        if (api.runtime.openOptionsPage) {
+            const opening = api.runtime.openOptionsPage();
+            if (opening && typeof opening.catch === 'function') opening.catch(() => {});
+        } else {
+            window.open('options.html', '_blank');
+        }
+    }
+
     function setLinks(aghUrl, autoBlockPage) {
         state.aghUrl = aghUrl || DEFAULT_AGH;
         $('querylogLink').href = state.aghUrl + '/#querylog';
@@ -268,12 +352,19 @@
 
         const params = new URLSearchParams(location.search);
         const debugHost = (params.get('host') || '').toLowerCase().replace(/\.$/, '');
-        let cfg = { aghUrl: DEFAULT_AGH, clientName: '', autoBlockPage: true };
+        let cfg = {
+            aghUrl: DEFAULT_AGH,
+            clientName: '',
+            autoBlockPage: true,
+            cosmeticEnabled: true,
+            cosmeticSaveToAgh: true,
+        };
         try {
             cfg = await api.runtime.sendMessage({ type: 'get-config' }) || cfg;
         } catch (_) {}
         setLinks(cfg.aghUrl, cfg.autoBlockPage);
         state.client = cfg.clientName || '';
+        state.cosmeticEnabled = cfg.cosmeticEnabled !== false;
 
         let tab = null;
         try {
@@ -302,11 +393,13 @@
             await loadSite();
         }
 
-        await Promise.all([loadProtection(), loadStats()]);
+        await Promise.all([loadProtection(), loadStats(), loadCosmetic()]);
     }
 
     toggleBtn.addEventListener('click', () => { void toggleSite(false); });
     toggleClientBtn.addEventListener('click', () => { void toggleSite(true); });
+    pickBtn.addEventListener('click', () => { void pickElement(); });
+    cosmeticSettingsBtn.addEventListener('click', openCosmeticSettings);
     pauseBtn.addEventListener('click', () => { void setProtectionState(false, Number(pauseSelect.value) || 30000); });
     resumeBtn.addEventListener('click', () => { void setProtectionState(true, 0); });
 

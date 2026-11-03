@@ -33,6 +33,8 @@
     const adminLink = $('adminLink');
     const btnAll = $('unblockAll');
     const btnClient = $('unblockClient');
+    const btnTemp = $('unblockTemp');
+    const tempDuration = $('tempDuration');
     const btnBack = $('goBack');
 
     function setStatus(text, state) {
@@ -44,6 +46,8 @@
     function setBusy(busy) {
         btnAll.disabled = busy;
         btnClient.disabled = busy;
+        btnTemp.disabled = busy;
+        tempDuration.disabled = busy;
         btnBack.disabled = false;
     }
 
@@ -65,7 +69,7 @@
         status.appendChild(document.createTextNode(', then try again.'));
     }
 
-    async function unblock(clientOnly) {
+    async function unblock(clientOnly, temporary) {
         if (!api) {
             setStatus('The extension API is unavailable on this page.', 'error');
             return;
@@ -78,7 +82,7 @@
         setBusy(true);
         setStatus(clientOnly
             ? `Adding an allowlist rule for ${client || 'this client'}…`
-            : 'Adding an allowlist rule…');
+            : (temporary ? 'Adding a temporary allowlist rule…' : 'Adding an allowlist rule…'));
 
         try {
             const res = await api.runtime.sendMessage({
@@ -86,6 +90,8 @@
                 host,
                 url: original,
                 clientOnly: !!clientOnly,
+                temporary: !!temporary,
+                duration: temporary ? Number(tempDuration.value) || 60000 : 0,
                 client,
                 target: ruleTarget || host,
             });
@@ -96,7 +102,7 @@
                 return;
             }
             if (res.ok) {
-                setStatus('Unblocked. Redirecting…', 'success');
+                setStatus((res.message || (temporary ? 'Temporarily unblocked.' : 'Unblocked.')) + ' Redirecting…', 'success');
                 window.setTimeout(() => location.replace(original), 4000);
                 return;
             }
@@ -119,6 +125,8 @@
         setBusy(true);
         btnAll.disabled = true;
         btnClient.disabled = true;
+        btnTemp.disabled = true;
+        tempDuration.disabled = true;
         return;
     }
 
@@ -149,8 +157,9 @@
         }).catch(() => {});
     }
 
-    btnAll.addEventListener('click', () => { void unblock(false); });
-    btnClient.addEventListener('click', () => { void unblock(true); });
+    btnAll.addEventListener('click', () => { void unblock(false, false); });
+    btnClient.addEventListener('click', () => { void unblock(true, false); });
+    btnTemp.addEventListener('click', () => { void unblock(false, true); });
     btnBack.addEventListener('click', () => {
         if (history.length > 1) history.back();
         else window.close();

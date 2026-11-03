@@ -10,11 +10,22 @@
     const aghUrl = $('aghUrl');
     const clientName = $('clientName');
     const autoBlockPage = $('autoBlockPage');
+    const cosmeticEnabled = $('cosmeticEnabled');
+    const cosmeticSaveToAgh = $('cosmeticSaveToAgh');
+    const cosmeticRules = $('cosmeticRules');
     const adminLink = $('adminLink');
     const status = $('status');
     const testBtn = $('testBtn');
 
     const DEFAULT_AGH = 'https://adguard.home.tmiland.com';
+
+    function parseLocalRules(text) {
+        return String(text || '')
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line && !line.startsWith('!'))
+            .slice(0, 500);
+    }
 
     function setStatus(text, state) {
         status.textContent = text;
@@ -49,10 +60,16 @@
             aghUrl: DEFAULT_AGH,
             clientName: '',
             autoBlockPage: true,
+            cosmeticEnabled: true,
+            cosmeticSaveToAgh: true,
+            cosmeticRules: [],
         });
         aghUrl.value = cfg.aghUrl || DEFAULT_AGH;
         clientName.value = cfg.clientName || '';
         autoBlockPage.checked = cfg.autoBlockPage !== false;
+        cosmeticEnabled.checked = cfg.cosmeticEnabled !== false;
+        cosmeticSaveToAgh.checked = cfg.cosmeticSaveToAgh !== false;
+        cosmeticRules.value = (Array.isArray(cfg.cosmeticRules) ? cfg.cosmeticRules : []).join('\n');
         updateAdminLink();
     }
 
@@ -72,6 +89,9 @@
             aghUrl: url,
             clientName: clientName.value.trim(),
             autoBlockPage: autoBlockPage.checked,
+            cosmeticEnabled: cosmeticEnabled.checked,
+            cosmeticSaveToAgh: cosmeticSaveToAgh.checked,
+            cosmeticRules: parseLocalRules(cosmeticRules.value),
         });
         aghUrl.value = url;
         updateAdminLink();
@@ -97,6 +117,9 @@
                 aghUrl: url,
                 clientName: clientName.value.trim(),
                 autoBlockPage: autoBlockPage.checked,
+                cosmeticEnabled: cosmeticEnabled.checked,
+                cosmeticSaveToAgh: cosmeticSaveToAgh.checked,
+                cosmeticRules: parseLocalRules(cosmeticRules.value),
             });
             aghUrl.value = url;
             updateAdminLink();

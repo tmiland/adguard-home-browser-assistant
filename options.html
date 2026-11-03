@@ -24,7 +24,7 @@
         <main class="card">
             <p class="eyebrow">Browser Assistant settings</p>
             <h1 class="options-title">Settings</h1>
-            <p class="lead">When an HTTPS site is blocked by AdGuard Home, the extension catches the navigation error, asks AGH whether the domain is filtered, and shows an Unblock page. It reuses your existing logged-in AdGuard Home session — no password is stored here.</p>
+            <p class="lead">When an HTTPS site is blocked by AdGuard Home, the extension catches the navigation error, asks AGH whether the domain is filtered, and shows an Unblock page. It reuses your existing logged-in AdGuard Home session — no password is stored here. Element hiding adds cosmetic rules that Firefox applies; AGH stores them but cannot inject CSS over DNS.</p>
 
             <form id="settingsForm" class="form">
                 <label class="field">
@@ -44,6 +44,28 @@
                     <span>Show the block page automatically on failed navigations</span>
                 </label>
 
+                <div class="divider"></div>
+                <p class="eyebrow">Element hiding</p>
+                <p class="hint">AdGuard Home can store cosmetic rules, but its DNS filtering cannot apply them. This extension injects the matching CSS in Firefox. Use the picker in the toolbar or the page context menu, or add rules manually below.</p>
+
+                <label class="check">
+                    <input id="cosmeticEnabled" type="checkbox">
+                    <span>Enable element hiding</span>
+                </label>
+
+                <label class="check">
+                    <input id="cosmeticSaveToAgh" type="checkbox">
+                    <span>Save picked elements to AdGuard Home user rules</span>
+                </label>
+
+                <label class="field">
+                    <span>Local element-hiding rules</span>
+                    <textarea id="cosmeticRules" rows="5" spellcheck="false" placeholder="example.com##.ad-banner&#10;example.com#$#body { overflow: auto !important; }"></textarea>
+                    <small>One rule per line. These stay in this browser. Rules saved to AGH are read from its user rules automatically.</small>
+                </label>
+
+                <div class="divider"></div>
+
                 <div class="actions">
                     <button class="button button-primary" type="submit">Save</button>
                     <button class="button button-secondary" id="testBtn" type="button">Test AGH session</button>
@@ -56,7 +78,7 @@
         </main>
 
         <footer class="footer">
-            <span>AdGuard Home Browser Assistant 0.3.1</span>
+            <span>AdGuard Home Browser Assistant 0.4.1</span>
             <span class="dot">·</span>
             <a href="https://github.com/tmiland/adguard-home-browser-assistant" target="_blank" rel="noopener noreferrer">GitHub</a>
         </footer>

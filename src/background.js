@@ -69,11 +69,15 @@ async function getConfig() {
         aghUrl: DEFAULT_AGH,
         clientName: '',
         autoBlockPage: true,
+        cosmeticEnabled: true,
+        cosmeticSaveToAgh: true,
     });
     cfg.aghUrl = String(cfg.aghUrl || DEFAULT_AGH).trim().replace(/\/+$/, '');
     if (!/^https?:\/\//i.test(cfg.aghUrl)) cfg.aghUrl = DEFAULT_AGH;
     cfg.clientName = String(cfg.clientName || '').trim();
     cfg.autoBlockPage = cfg.autoBlockPage !== false;
+    cfg.cosmeticEnabled = cfg.cosmeticEnabled !== false;
+    cfg.cosmeticSaveToAgh = cfg.cosmeticSaveToAgh !== false;
     return cfg;
 }
 
@@ -288,6 +292,98 @@ async function resolveClient(host, cfg) {
     return best ? best.client : '';
 }
 
+const TEMP_RETRY_MS = 5 * 60 * 1000;
+const tempUnblockTimers = new Map();
+
+async function getPendingUnblocks() {
+    const stored = await browser.storage.local.get({ pendingUnblocks: [] });
+    return Array.isArray(stored.pendingUnblocks)
+        ? stored.pendingUnblocks.filter((entry) => entry && typeof entry.id === 'string' && typeof entry.rule === 'string')
+        : [];
+}
+
+async function savePendingUnblocks(list) {
+    await browser.storage.local.set({ pendingUnblocks: list });
+}
+
+async function cancelPendingForRule(rule) {
+    const list = await getPendingUnblocks();
+    const matching = list.filter((entry) => entry.rule === rule);
+    if (!matching.length) return;
+    for (const entry of matching) {
+        const timer = tempUnblockTimers.get(entry.id);
+        if (timer) clearTimeout(timer);
+        tempUnblockTimers.delete(entry.id);
+    }
+    await savePendingUnblocks(list.filter((entry) => entry.rule !== rule));
+}
+
+async function removeAllowRule(rule) {
+    const status = await aghApi('/control/filtering/status');
+    if (status.session_expired) return { ok: false, session_expired: true };
+    if (!status.ok || !status.data || !Array.isArray(status.data.user_rules)) {
+        return { ok: false };
+    }
+    if (!status.data.user_rules.includes(rule)) return { ok: true };
+    const next = status.data.user_rules.filter((line) => line !== rule);
+    const post = await aghApi('/control/filtering/set_rules', {
+        method: 'POST',
+        body: { rules: next },
+    });
+    if (post.session_expired) return { ok: false, session_expired: true };
+    return { ok: !!post.ok };
+}
+
+function schedulePendingUnblock(entry) {
+    const existing = tempUnblockTimers.get(entry.id);
+    if (existing) clearTimeout(existing);
+    const delay = Math.max(0, Number(entry.until) - Date.now());
+    const timer = setTimeout(() => {
+        tempUnblockTimers.delete(entry.id);
+        void expirePendingUnblock(entry.id);
+    }, Math.min(delay, 2147483647));
+    tempUnblockTimers.set(entry.id, timer);
+}
+
+async function expirePendingUnblock(id) {
+    const list = await getPendingUnblocks();
+    const entry = list.find((item) => item.id === id);
+    if (!entry) return;
+    const result = await removeAllowRule(entry.rule);
+    if (!result.ok) {
+        /* Keep the rule and try again; a temporary unblock must not become a
+           permanent one just because the AGH session was unavailable. */
+        entry.until = Date.now() + TEMP_RETRY_MS;
+        entry.attempts = (Number(entry.attempts) || 0) + 1;
+        await savePendingUnblocks(list);
+        schedulePendingUnblock(entry);
+        return;
+    }
+    await savePendingUnblocks(list.filter((item) => item.id !== id));
+}
+
+async function addPendingUnblock(entry) {
+    await cancelPendingForRule(entry.rule);
+    const list = await getPendingUnblocks();
+    list.push(entry);
+    await savePendingUnblocks(list);
+    schedulePendingUnblock(entry);
+}
+
+async function restorePendingUnblocks() {
+    const list = await getPendingUnblocks();
+    for (const entry of list) schedulePendingUnblock(entry);
+}
+
+function durationLabel(ms) {
+    const seconds = Math.max(1, Math.round(ms / 1000));
+    if (seconds < 60) return seconds + ' seconds';
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return minutes + (minutes === 1 ? ' minute' : ' minutes');
+    const hours = Math.round(minutes / 60);
+    return hours + (hours === 1 ? ' hour' : ' hours');
+}
+
 async function handleToggle(msg) {
     const action = msg.action === 'block' ? 'block' : 'unblock';
     const host = normalizeHost(msg.host);
@@ -327,6 +423,15 @@ async function handleToggle(msg) {
     const allowRule = msg.clientOnly ? `@@||${target}^$client='${escaped}'` : `@@||${target}^$important`;
     const hostBlockRule = msg.clientOnly ? `||${host}^$client='${escaped}'` : `||${host}^$important`;
     const hostAllowRule = msg.clientOnly ? `@@||${host}^$client='${escaped}'` : `@@||${host}^$important`;
+    const addRule = action === 'block' ? hostBlockRule : allowRule;
+    const ruleAlreadyPresent = rules.includes(addRule);
+    const temporary = action === 'unblock' && !!msg.temporary;
+    let durationMs = 0;
+    if (temporary) {
+        durationMs = Number(msg.duration);
+        if (!Number.isFinite(durationMs) || durationMs < 1000) durationMs = 60000;
+        durationMs = Math.min(durationMs, 24 * 60 * 60 * 1000);
+    }
 
     let removeRules;
     if (action === 'block') {
@@ -347,6 +452,28 @@ async function handleToggle(msg) {
         }
     }
 
+    let temporaryUntil = 0;
+    if (action === 'block') {
+        await cancelPendingForRule(hostAllowRule);
+    } else if (temporary) {
+        const pending = await getPendingUnblocks();
+        const alreadyPending = pending.some((entry) => entry.rule === allowRule);
+        if (!ruleAlreadyPresent || alreadyPending) {
+            temporaryUntil = Date.now() + durationMs;
+            await addPendingUnblock({
+                id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+                rule: allowRule,
+                host,
+                target,
+                client,
+                until: temporaryUntil,
+                createdAt: Date.now(),
+            });
+        }
+    } else {
+        await cancelPendingForRule(allowRule);
+    }
+
     const checkPath = '/control/filtering/check_host?name=' + encodeURIComponent(host) +
         (msg.clientOnly ? '&client=' + encodeURIComponent(client) : '');
 
@@ -360,7 +487,12 @@ async function handleToggle(msg) {
                     blocked: action === 'block',
                     client,
                     target,
-                    message: action === 'block' ? 'Blocked.' : 'Unblocked.',
+                    temporary: temporary && temporaryUntil > 0,
+                    until: temporaryUntil,
+                    duration: temporary ? durationMs : 0,
+                    message: action === 'block'
+                        ? 'Blocked.'
+                        : (temporaryUntil > 0 ? 'Unblocked for ' + durationLabel(durationMs) + '.' : 'Unblocked.'),
                 };
             }
         }
@@ -371,6 +503,9 @@ async function handleToggle(msg) {
         pending: true,
         client,
         target,
+        temporary: temporary && temporaryUntil > 0,
+        until: temporaryUntil,
+        duration: temporary ? durationMs : 0,
         message: 'AdGuard is still rebuilding its filters. Wait a few seconds and try again.',
     };
 }
@@ -442,6 +577,272 @@ async function handleGetStats() {
 }
 
 /* -------------------------------------------------------------------------
+ * Cosmetic (element hiding) rules
+ *
+ * AGH stores cosmetic rules in its user rules, but DNS filtering cannot apply
+ * them. The assistant reads them back and injects the matching CSS in Firefox.
+ * Picked rules are saved to AGH user rules when possible, otherwise locally.
+ */
+
+const COSMETIC_CACHE_TTL = 5 * 60 * 1000;
+const COSMETIC_MAX_LOCAL = 500;
+let cosmeticCache = null;
+let cosmeticCachePromise = null;
+let lastCosmeticBridgeAt = 0;
+
+function cosmeticHost(value) {
+    const host = String(value || '').trim().toLowerCase().replace(/\.$/, '');
+    if (!host || host.length > 253 || /[\s/\\]/.test(host)) return '';
+    return host;
+}
+
+function hasCosmeticMarker(line) {
+    return line.includes('##') ||
+        line.includes('#@#') ||
+        line.includes('#?#') ||
+        line.includes('#$#') ||
+        line.includes('#@$#') ||
+        line.includes('#%#') ||
+        line.includes('#@%#');
+}
+
+function cosmeticRulesOnly(rules) {
+    return (Array.isArray(rules) ? rules : []).filter((line) => (
+        typeof line === 'string' && hasCosmeticMarker(line)
+    ));
+}
+
+function cosmeticCacheFresh(cache, aghUrl) {
+    return !!cache &&
+        cache.aghUrl === aghUrl &&
+        Array.isArray(cache.rules) &&
+        Date.now() - Number(cache.fetchedAt || 0) < COSMETIC_CACHE_TTL;
+}
+
+async function rememberCosmeticRules(rules, aghUrl) {
+    const cache = {
+        aghUrl,
+        rules: cosmeticRulesOnly(rules),
+        fetchedAt: Date.now(),
+    };
+    cosmeticCache = cache;
+    await browser.storage.local.set({ aghCosmeticCache: cache });
+}
+
+async function cosmeticFilteringStatus(cfg) {
+    /* Page loads must not open an AGH tab every time. Direct fetch first; use
+       the bridge at most once every five minutes if direct is blocked. */
+    const direct = await apiDirect(cfg, '/control/filtering/status');
+    if (direct.ok || direct.session_expired) return direct;
+    if (Date.now() - lastCosmeticBridgeAt < 5 * 60 * 1000) return direct;
+    lastCosmeticBridgeAt = Date.now();
+    return aghApi('/control/filtering/status');
+}
+
+async function fetchAghCosmeticRules(cfg, force) {
+    if (!force && cosmeticCacheFresh(cosmeticCache, cfg.aghUrl)) {
+        return { rules: cosmeticCache.rules.slice(), stale: false };
+    }
+    if (!force && cosmeticCachePromise) return cosmeticCachePromise;
+
+    const run = (async () => {
+        const stored = await browser.storage.local.get({ aghCosmeticCache: null });
+        const cached = stored.aghCosmeticCache;
+        const fallback = cached && Array.isArray(cached.rules) && cached.aghUrl === cfg.aghUrl
+            ? cached.rules.slice()
+            : [];
+
+        const status = await cosmeticFilteringStatus(cfg);
+        if (status.ok && status.data && Array.isArray(status.data.user_rules)) {
+            const rules = cosmeticRulesOnly(status.data.user_rules);
+            await rememberCosmeticRules(status.data.user_rules, cfg.aghUrl);
+            return { rules, stale: false };
+        }
+        return {
+            rules: fallback,
+            stale: true,
+            session_expired: !!status.session_expired,
+            error: status.error || '',
+        };
+    })();
+
+    if (!force) cosmeticCachePromise = run;
+    try {
+        return await run;
+    } finally {
+        if (cosmeticCachePromise === run) cosmeticCachePromise = null;
+    }
+}
+
+async function getCosmeticForHost(host, force) {
+    const cfg = await getConfig();
+    const stored = await browser.storage.local.get({ cosmeticRules: [] });
+    const localRules = Array.isArray(stored.cosmeticRules)
+        ? stored.cosmeticRules.filter((line) => typeof line === 'string' && line.trim())
+        : [];
+
+    let agh = { rules: [], stale: false, session_expired: false };
+    if (cfg.cosmeticEnabled) {
+        try {
+            agh = await fetchAghCosmeticRules(cfg, !!force);
+        } catch (e) {
+            agh = { rules: [], stale: true, error: String(e) };
+        }
+    }
+
+    const all = agh.rules.concat(localRules);
+    const built = cfg.cosmeticEnabled
+        ? AGHCosmeticRules.buildForHost(all, host)
+        : { hide: [], style: [], ignored: 0, total: 0 };
+
+    return {
+        ok: true,
+        enabled: cfg.cosmeticEnabled,
+        saveToAgh: cfg.cosmeticSaveToAgh,
+        rules: all,
+        active: built.hide.length + built.style.length,
+        hide: built.hide.length,
+        style: built.style.length,
+        ignored: built.ignored,
+        aghCount: agh.rules.length,
+        localCount: localRules.length,
+        stale: !!agh.stale,
+        session_expired: !!agh.session_expired,
+        error: agh.error || '',
+    };
+}
+
+async function handleGetCosmetic(msg) {
+    const host = cosmeticHost(msg.host);
+    if (!host) return { ok: false, message: 'Invalid hostname.' };
+    return getCosmeticForHost(host, !!msg.force);
+}
+
+function sanitizeCosmeticSelector(value) {
+    const selector = String(value || '').trim();
+    if (!selector || selector.length > 400 || /[\r\n]/.test(selector)) return '';
+    if (selector.includes('{') || selector.includes('}')) return '';
+    return selector;
+}
+
+async function handleAddCosmetic(msg) {
+    const cfg = await getConfig();
+    if (!cfg.cosmeticEnabled) {
+        return { ok: false, message: 'Element hiding is turned off in Settings.' };
+    }
+    const host = cosmeticHost(msg.host);
+    const selector = sanitizeCosmeticSelector(msg.selector);
+    if (!host) return { ok: false, message: 'Invalid hostname.' };
+    if (!selector) return { ok: false, message: 'Invalid element selector.' };
+
+    const rule = `${host}##${selector}`;
+    let savedTo = 'local';
+    let aghError = '';
+
+    if (cfg.cosmeticSaveToAgh && normalizeHost(host)) {
+        const status = await aghApi('/control/filtering/status');
+        if (status.ok && status.data && Array.isArray(status.data.user_rules)) {
+            const rules = status.data.user_rules.slice();
+            if (rules.includes(rule)) {
+                savedTo = 'agh';
+            } else {
+                const post = await aghApi('/control/filtering/set_rules', {
+                    method: 'POST',
+                    body: { rules: rules.concat(rule) },
+                });
+                if (post.ok) {
+                    savedTo = 'agh';
+                    await rememberCosmeticRules(rules.concat(rule), cfg.aghUrl);
+                } else {
+                    aghError = post.session_expired
+                        ? 'the AdGuard Home session expired'
+                        : 'AdGuard Home rejected the rule';
+                }
+            }
+        } else {
+            aghError = status.session_expired
+                ? 'the AdGuard Home session expired'
+                : 'AdGuard Home is unavailable';
+        }
+    }
+
+    if (savedTo === 'local') {
+        const stored = await browser.storage.local.get({ cosmeticRules: [] });
+        const rules = Array.isArray(stored.cosmeticRules)
+            ? stored.cosmeticRules.filter((line) => typeof line === 'string' && line.trim())
+            : [];
+        if (!rules.includes(rule)) rules.push(rule);
+        await browser.storage.local.set({ cosmeticRules: rules.slice(-COSMETIC_MAX_LOCAL) });
+    }
+
+    const view = await getCosmeticForHost(host, false);
+    const message = savedTo === 'agh'
+        ? 'Element hidden and saved to AdGuard Home.'
+        : 'Element hidden locally' + (aghError ? ` (${aghError})` : '') + '.';
+
+    return {
+        ok: true,
+        savedTo,
+        rule,
+        message,
+        rules: view.rules,
+        active: view.active,
+        session_expired: !!aghError && /session/i.test(aghError),
+    };
+}
+
+/* Injected CSS is applied at user-origin so page CSP cannot block it. */
+const cosmeticCssByTab = new Map();
+
+function cosmeticCssKey(tabId, frameId) {
+    return `${tabId}:${Number(frameId) || 0}`;
+}
+
+async function setTabCosmeticCss(tabId, frameId, css) {
+    const key = cosmeticCssKey(tabId, frameId);
+    const previous = cosmeticCssByTab.get(key);
+    const details = {
+        code: css,
+        cssOrigin: 'user',
+        frameId: Number(frameId) || 0,
+    };
+
+    if (previous) {
+        try {
+            await browser.tabs.removeCSS(tabId, {
+                code: previous,
+                cssOrigin: 'user',
+                frameId: Number(frameId) || 0,
+            });
+        } catch (_) {
+            /* The page may have navigated already. */
+        }
+    }
+
+    if (css) {
+        try {
+            await browser.tabs.insertCSS(tabId, details);
+        } catch (e) {
+            cosmeticCssByTab.delete(key);
+            return { ok: false, error: String(e) };
+        }
+        cosmeticCssByTab.set(key, css);
+    } else {
+        cosmeticCssByTab.delete(key);
+    }
+    return { ok: true };
+}
+
+async function handleApplyCosmeticCss(msg, sender) {
+    if (!sender.tab || typeof sender.tab.id !== 'number') {
+        return { ok: false, error: 'No tab for this content script.' };
+    }
+    const css = typeof msg.css === 'string' ? msg.css : '';
+    if (css.length > 200000) return { ok: false, error: 'Cosmetic CSS is too large.' };
+    return setTabCosmeticCss(sender.tab.id, sender.frameId, css);
+}
+
+/* -------------------------------------------------------------------------
  * Automatic block page
  */
 
@@ -489,6 +890,52 @@ browser.webNavigation.onErrorOccurred.addListener((details) => {
     void handleNavigationError(details);
 });
 
+browser.webNavigation.onCommitted.addListener((details) => {
+    /* User-origin CSS is cleared by the navigation; drop the bookkeeping. */
+    cosmeticCssByTab.delete(cosmeticCssKey(details.tabId, details.frameId));
+});
+
+browser.tabs.onRemoved.addListener((tabId) => {
+    const prefix = tabId + ':';
+    for (const key of Array.from(cosmeticCssByTab.keys())) {
+        if (key.startsWith(prefix)) cosmeticCssByTab.delete(key);
+    }
+});
+
+function rebuildCosmeticMenu() {
+    if (!browser.contextMenus) return;
+    browser.contextMenus.removeAll().then(() => {
+        try {
+            browser.contextMenus.create({
+                id: 'agh-hide-element',
+                title: 'Hide element with AdGuard Home Assistant',
+                contexts: ['all'],
+            });
+        } catch (_) {
+            /* Duplicate id after a reload; the existing item is fine. */
+        }
+    }).catch(() => {});
+}
+
+browser.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId !== 'agh-hide-element' || !tab || typeof tab.id !== 'number') return;
+    void (async () => {
+        const cfg = await getConfig();
+        if (!cfg.cosmeticEnabled) {
+            browser.runtime.openOptionsPage();
+            return;
+        }
+        try {
+            await browser.tabs.sendMessage(tab.id, { type: 'cosmetic-pick' }, { frameId: 0 });
+        } catch (_) {
+            /* Restricted page or the content script is not loaded. */
+        }
+    })();
+});
+
+rebuildCosmeticMenu();
+void restorePendingUnblocks();
+
 browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (!msg || typeof msg.type !== 'string') return undefined;
 
@@ -497,7 +944,15 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             aghUrl: cfg.aghUrl,
             clientName: cfg.clientName,
             autoBlockPage: cfg.autoBlockPage,
-        })).catch(() => sendResponse({ aghUrl: DEFAULT_AGH, clientName: '', autoBlockPage: true }));
+            cosmeticEnabled: cfg.cosmeticEnabled,
+            cosmeticSaveToAgh: cfg.cosmeticSaveToAgh,
+        })).catch(() => sendResponse({
+            aghUrl: DEFAULT_AGH,
+            clientName: '',
+            autoBlockPage: true,
+            cosmeticEnabled: true,
+            cosmeticSaveToAgh: true,
+        }));
         return true;
     }
 
@@ -545,6 +1000,30 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         handleGetStats().then(sendResponse).catch((e) => sendResponse({
             ok: false,
             message: 'Could not read stats: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'get-cosmetic') {
+        handleGetCosmetic(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not read element-hiding rules: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'add-cosmetic') {
+        handleAddCosmetic(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not save the element-hiding rule: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'apply-cosmetic-css') {
+        handleApplyCosmeticCss(msg, sender).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            error: String(e),
         }));
         return true;
     }

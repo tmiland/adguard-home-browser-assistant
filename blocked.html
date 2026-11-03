@@ -39,9 +39,20 @@
                 <button class="button button-ghost" id="goBack" type="button">Go back</button>
             </div>
 
+            <div class="temporary">
+                <label for="tempDuration">Temporarily unblock for</label>
+                <select id="tempDuration" aria-label="Temporary unblock duration">
+                    <option value="30000">30 seconds</option>
+                    <option value="60000" selected>1 minute</option>
+                    <option value="300000">5 minutes</option>
+                    <option value="900000">15 minutes</option>
+                </select>
+                <button class="button button-secondary" id="unblockTemp" type="button">Temporarily unblock</button>
+            </div>
+
             <p class="status" id="status" role="status" aria-live="polite"></p>
 
-            <p class="note">“Unblock” allows this hostname and its subdomains for every device using this AdGuard. “Unblock for this client only” applies only to <b id="noteClient">this client</b>; other devices stay blocked. It unblocks <b id="noteDomain">this hostname</b>.</p>
+            <p class="note">“Unblock” allows this hostname and its subdomains for every device using this AdGuard. “Unblock for this client only” applies only to <b id="noteClient">this client</b>; other devices stay blocked. It unblocks <b id="noteDomain">this hostname</b>. “Temporarily unblock” removes its allowlist rule automatically when the selected time ends.</p>
         </main>
 
         <footer class="footer">

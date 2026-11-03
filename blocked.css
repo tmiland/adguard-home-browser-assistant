@@ -199,6 +199,31 @@ h1 {
     color: var(--ink);
 }
 
+.temporary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.temporary select {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg2);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    padding: 8px 9px;
+}
+
+.temporary .button {
+    padding: 8px 13px;
+    font-size: 13px;
+}
+
 .status {
     min-height: 1.5em;
     margin: 16px 0 0;
