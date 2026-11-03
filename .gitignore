@@ -1,3 +1,6 @@
 # AGENTS.md is local-only private notes — never commit.
 AGENTS.md
 *.xpi
+
+# Build output
+web-ext-artifacts/

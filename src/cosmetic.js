@@ -25,6 +25,7 @@
     let picker = null;
     let refreshTimer = null;
     let lastBuilt = null;
+    let lastInjectedCss = '';
     let extObserver = null;
     let extTimer = null;
     const EXT_ATTR = 'data-agh-assistant-x';
@@ -254,8 +255,10 @@
 
         if (key !== lastAppliedKey) {
             lastAppliedKey = key;
+            const previousCss = lastInjectedCss;
+            lastInjectedCss = css;
             const seq = ++applySeq;
-            api.runtime.sendMessage({ type: 'apply-cosmetic-css', css }).then((res) => {
+            api.runtime.sendMessage({ type: 'apply-cosmetic-css', css, previousCss }).then((res) => {
                 if (seq !== applySeq) return;
                 if (!res || !res.ok) applyDomCss(css);
             }).catch(() => {

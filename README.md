@@ -134,7 +134,7 @@ subdomain of that domain works.
 
 ## Limitations
 
-- Firefox only (Manifest v2). Per-browser, not network-wide; phones/TVs/IoT do
+- Firefox only (Manifest v3). Per-browser, not network-wide; phones/TVs/IoT do
   not get the block page or element hiding.
 - Automatic pages only for top-level navigations, not blocked subresources.
 - The AGH session must be valid; if it expires, open AGH, log in and retry.
@@ -150,7 +150,7 @@ subdomain of that domain works.
   executed. The extended-CSS engine covers the common selectors above, but not
   every AdGuard extended selector (for example `:matches-css-before` is skipped).
 - On pages with a strict Content-Security-Policy, the assistant injects CSS at
-  user origin (`tabs.insertCSS`) so page CSP does not block the rules. The
+  user origin (`scripting.insertCSS`) so page CSP does not block the rules. The
   picker overlay uses a separate shadow-root UI.
 
 ## Files

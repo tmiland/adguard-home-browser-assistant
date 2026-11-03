@@ -216,26 +216,19 @@ async function injectAghContentScripts(tabId, url, force) {
     const key = `${tabId}:${originOf(url)}`;
     if (!force && aghContentTabs.has(key)) return true;
     aghContentTabs.add(key);
+    const target = { tabId, frameIds: [0] };
     try {
-        await browser.tabs.insertCSS(tabId, { file: 'src/content.css', frameId: 0 });
+        await browser.scripting.insertCSS({ target, files: ['src/content.css'] });
     } catch (_) {
         /* The tab may be restricted or navigating. */
     }
     try {
-        await browser.tabs.executeScript(tabId, {
-            file: 'src/api-bridge.js',
-            frameId: 0,
-            runAt: 'document_idle',
-        });
+        await browser.scripting.executeScript({ target, files: ['src/api-bridge.js'] });
     } catch (_) {
         /* The tab may be restricted or navigating. */
     }
     try {
-        await browser.tabs.executeScript(tabId, {
-            file: 'src/content.js',
-            frameId: 0,
-            runAt: 'document_idle',
-        });
+        await browser.scripting.executeScript({ target, files: ['src/content.js'] });
     } catch (_) {
         /* The tab may be restricted or navigating. */
     }
@@ -339,7 +332,7 @@ async function resolveClient(host, cfg) {
 }
 
 const TEMP_RETRY_MS = 5 * 60 * 1000;
-const tempUnblockTimers = new Map();
+const TEMP_ALARM_PREFIX = 'agh-temp-';
 
 async function getPendingUnblocks() {
     const stored = await browser.storage.local.get({ pendingUnblocks: [] });
@@ -357,9 +350,7 @@ async function cancelPendingForRule(rule) {
     const matching = list.filter((entry) => entry.rule === rule);
     if (!matching.length) return;
     for (const entry of matching) {
-        const timer = tempUnblockTimers.get(entry.id);
-        if (timer) clearTimeout(timer);
-        tempUnblockTimers.delete(entry.id);
+        await Promise.resolve(browser.alarms.clear(TEMP_ALARM_PREFIX + entry.id)).catch(() => {});
     }
     await savePendingUnblocks(list.filter((entry) => entry.rule !== rule));
 }
@@ -381,14 +372,12 @@ async function removeAllowRule(rule) {
 }
 
 function schedulePendingUnblock(entry) {
-    const existing = tempUnblockTimers.get(entry.id);
-    if (existing) clearTimeout(existing);
-    const delay = Math.max(0, Number(entry.until) - Date.now());
-    const timer = setTimeout(() => {
-        tempUnblockTimers.delete(entry.id);
-        void expirePendingUnblock(entry.id);
-    }, Math.min(delay, 2147483647));
-    tempUnblockTimers.set(entry.id, timer);
+    const when = Math.max(Date.now() + 1000, Number(entry.until) || Date.now() + 60000);
+    try {
+        void Promise.resolve(browser.alarms.create(TEMP_ALARM_PREFIX + entry.id, { when })).catch(() => {});
+    } catch (_) {
+        /* alarms should be available with the permission; keep the entry stored. */
+    }
 }
 
 async function expirePendingUnblock(id) {
@@ -986,9 +975,7 @@ async function handleCancelPendingUnblock(msg) {
         };
     }
 
-    const timer = tempUnblockTimers.get(entry.id);
-    if (timer) clearTimeout(timer);
-    tempUnblockTimers.delete(entry.id);
+    await Promise.resolve(browser.alarms.clear(TEMP_ALARM_PREFIX + entry.id)).catch(() => {});
     await savePendingUnblocks(list.filter((item) => item.id !== entry.id));
     return { ok: true, message: 'Temporary unblock cancelled.' };
 }
@@ -1000,22 +987,14 @@ function cosmeticCssKey(tabId, frameId) {
     return `${tabId}:${Number(frameId) || 0}`;
 }
 
-async function setTabCosmeticCss(tabId, frameId, css) {
+async function setTabCosmeticCss(tabId, frameId, css, previousHint) {
     const key = cosmeticCssKey(tabId, frameId);
-    const previous = cosmeticCssByTab.get(key);
-    const details = {
-        code: css,
-        cssOrigin: 'user',
-        frameId: Number(frameId) || 0,
-    };
+    const previous = cosmeticCssByTab.get(key) || (typeof previousHint === 'string' ? previousHint : '');
+    const target = { tabId, frameIds: [Number(frameId) || 0] };
 
     if (previous) {
         try {
-            await browser.tabs.removeCSS(tabId, {
-                code: previous,
-                cssOrigin: 'user',
-                frameId: Number(frameId) || 0,
-            });
+            await browser.scripting.removeCSS({ target, css: previous, origin: 'USER' });
         } catch (_) {
             /* The page may have navigated already. */
         }
@@ -1023,7 +1002,7 @@ async function setTabCosmeticCss(tabId, frameId, css) {
 
     if (css) {
         try {
-            await browser.tabs.insertCSS(tabId, details);
+            await browser.scripting.insertCSS({ target, css, origin: 'USER' });
         } catch (e) {
             cosmeticCssByTab.delete(key);
             return { ok: false, error: String(e) };
@@ -1040,8 +1019,9 @@ async function handleApplyCosmeticCss(msg, sender) {
         return { ok: false, error: 'No tab for this content script.' };
     }
     const css = typeof msg.css === 'string' ? msg.css : '';
+    const previousCss = typeof msg.previousCss === 'string' ? msg.previousCss : '';
     if (css.length > 200000) return { ok: false, error: 'Cosmetic CSS is too large.' };
-    return setTabCosmeticCss(sender.tab.id, sender.frameId, css);
+    return setTabCosmeticCss(sender.tab.id, sender.frameId, css, previousCss);
 }
 
 /* -------------------------------------------------------------------------
@@ -1087,6 +1067,11 @@ async function handleNavigationError(details) {
         /* tab closed */
     }
 }
+
+browser.alarms.onAlarm.addListener((alarm) => {
+    if (!alarm || !alarm.name || !alarm.name.startsWith(TEMP_ALARM_PREFIX)) return;
+    void expirePendingUnblock(alarm.name.slice(TEMP_ALARM_PREFIX.length));
+});
 
 browser.webNavigation.onErrorOccurred.addListener((details) => {
     void handleNavigationError(details);
@@ -1140,7 +1125,14 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
 
 rebuildCosmeticMenu();
 void restorePendingUnblocks();
-void refreshAghContentScripts();
+
+browser.runtime.onInstalled.addListener(() => {
+    void refreshAghContentScripts();
+});
+
+browser.runtime.onStartup.addListener(() => {
+    void refreshAghContentScripts();
+});
 
 browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (!msg || typeof msg.type !== 'string') return undefined;
