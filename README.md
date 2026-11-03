@@ -26,7 +26,7 @@ the browser-side control surface.
 | <img src="docs/screenshots/popup.png" alt="AdGuard Home Browser Assistant popup showing a blocked site, unblock actions, element hiding, protection, stats, and a Donate link" width="330"> | <img src="docs/screenshots/block-page.png" alt="Automatic block page with Unblock, client-only, and temporary unblock options" width="520"> |
 
 <p align="center">
-  <img src="docs/screenshots/agh-widget.png" alt="Quick unblock widget on the AdGuard Home web interface" width="330">
+  <img src="docs/screenshots/agh-widget.png" alt="Quick unblock widget on the AdGuard Home web interface" width="640">
   <br>
   <sub>Quick unblock widget on the AdGuard Home web interface.</sub>
 </p>

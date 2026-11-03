@@ -123,3 +123,11 @@ test('buildForHost keeps extended rules out of plain CSS', () => {
     assert.equal(built.extended[1].action, 'style');
     assert.equal(built.extended[1].style, 'color: red');
 });
+
+test('ignores AGH comment separators that start with #', () => {
+    assert.equal(C.parseRule('#############################'), null);
+    assert.equal(C.parseRule('#          Amazon           #'), null);
+    const generic = C.parseRule('##.ad');
+    assert.equal(generic.type, 'hide');
+    assert.equal(generic.selector, '.ad');
+});

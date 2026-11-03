@@ -32,6 +32,8 @@
     function parseRule(raw) {
         const text = String(raw || '').trim();
         if (!text || text.startsWith('!') || text.startsWith('[')) return null;
+        /* AGH comment/separator lines start with # but are not cosmetic rules. */
+        if (/^#+$/.test(text) || /^#\s/.test(text)) return null;
 
         let found = null;
         for (const item of MARKERS) {
