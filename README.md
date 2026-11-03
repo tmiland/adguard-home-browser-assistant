@@ -86,16 +86,17 @@ No password is stored. The add-on reuses the `agh_session` cookie:
 - if SameSite/CORS prevents that, it uses a same-origin fetch inside an AGH UI
   tab (`src/api-bridge.js`), opening an inactive tab if necessary.
 
-The default AGH URL is **`https://adguard.home.tmiland.com`** — the actual
-session host. Set it in Settings if your AGH UI lives elsewhere.
+There is no universal AGH URL. Set yours in **Settings**; the examples use
+`https://adguard.example.com` or `http://192.168.1.1:3000`.
 
 ## Install (temporary)
 
-1. Make sure the AGH UI is reachable and logged in:
-   `https://adguard.home.tmiland.com`.
+1. Make sure your AGH UI is reachable and logged in (for example
+   `https://adguard.example.com`).
 2. Firefox → `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…**
 3. Select `manifest.json` from this repo.
-4. Open the toolbar icon. The popup shows the current site, protection,
+4. Open **Settings** and enter your AGH URL.
+5. Open the toolbar icon. The popup shows the current site, protection,
    element-hiding state and stats. Use Settings to set the client or disable
    the automatic block page; use **Pick element to hide** or the page context
    menu for cosmetic rules.
