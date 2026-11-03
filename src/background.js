@@ -1,6 +1,6 @@
 'use strict';
 
-const DEFAULT_AGH = 'https://adguard.home.tmiland.com';
+const DEFAULT_AGH = '';
 const BLOCKED_PAGE = 'blocked.html';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -69,6 +69,7 @@ async function getConfig() {
     cfg.autoBlockPage = cfg.autoBlockPage !== false;
     cfg.cosmeticEnabled = cfg.cosmeticEnabled !== false;
     cfg.cosmeticSaveToAgh = cfg.cosmeticSaveToAgh !== false;
+    cfg.configured = !!cfg.aghUrl;
     return cfg;
 }
 
@@ -79,6 +80,9 @@ async function getConfig() {
  */
 
 async function apiDirect(cfg, path, opt) {
+    if (!cfg.aghUrl) {
+        return { ok: false, message: 'Set the AdGuard Home URL in Settings.' };
+    }
     const method = (opt && opt.method) || 'GET';
     const init = {
         method,
@@ -170,6 +174,7 @@ async function ensureBridgeTab(cfg) {
 
 async function apiBridge(cfg, path, opt) {
     const tabId = await ensureBridgeTab(cfg);
+    await injectAghContentScripts(tabId, cfg.aghUrl, false);
     for (let i = 0; i < 5; i++) {
         try {
             const result = await browser.tabs.sendMessage(tabId, {
@@ -190,6 +195,9 @@ async function apiBridge(cfg, path, opt) {
 
 async function aghApi(path, opt) {
     const cfg = await getConfig();
+    if (!cfg.aghUrl) {
+        return { ok: false, message: 'Set the AdGuard Home URL in Settings.' };
+    }
     const direct = await apiDirect(cfg, path, opt);
     if (direct.ok) return direct;
     if (direct.session_expired) {
@@ -197,6 +205,56 @@ async function aghApi(path, opt) {
            tab fetch may still work. */
     }
     return apiBridge(cfg, path, opt);
+}
+
+const aghContentTabs = new Set();
+
+async function injectAghContentScripts(tabId, url, force) {
+    const cfg = await getConfig();
+    if (!cfg.aghUrl || !url) return false;
+    if (originOf(url) !== originOf(cfg.aghUrl)) return false;
+    const key = `${tabId}:${originOf(url)}`;
+    if (!force && aghContentTabs.has(key)) return true;
+    aghContentTabs.add(key);
+    try {
+        await browser.tabs.insertCSS(tabId, { file: 'src/content.css', frameId: 0 });
+    } catch (_) {
+        /* The tab may be restricted or navigating. */
+    }
+    try {
+        await browser.tabs.executeScript(tabId, {
+            file: 'src/api-bridge.js',
+            frameId: 0,
+            runAt: 'document_idle',
+        });
+    } catch (_) {
+        /* The tab may be restricted or navigating. */
+    }
+    try {
+        await browser.tabs.executeScript(tabId, {
+            file: 'src/content.js',
+            frameId: 0,
+            runAt: 'document_idle',
+        });
+    } catch (_) {
+        /* The tab may be restricted or navigating. */
+    }
+    return true;
+}
+
+async function refreshAghContentScripts() {
+    const cfg = await getConfig();
+    if (!cfg.aghUrl) return;
+    let tabs = [];
+    try {
+        tabs = await browser.tabs.query({});
+    } catch (_) {
+        return;
+    }
+    await Promise.allSettled(tabs.map((tab) => {
+        if (!tab || typeof tab.id !== 'number' || !tab.url) return undefined;
+        return injectAghContentScripts(tab.id, tab.url, true);
+    }));
 }
 
 async function queryLog(host) {
@@ -369,6 +427,9 @@ async function handleToggle(msg) {
     if (!host) return { ok: false, message: 'Invalid hostname.' };
 
     const cfg = await getConfig();
+    if (!cfg.aghUrl) {
+        return { ok: false, configured: false, message: 'Set the AdGuard Home URL in Settings.' };
+    }
     let client = '';
     if (msg.clientOnly) {
         client = String(msg.client || '').trim() || cfg.clientName || (await resolveClient(host, cfg));
@@ -493,6 +554,9 @@ async function handleGetSite(msg) {
     const host = normalizeHost(msg.host);
     if (!host) return { ok: false, message: 'Invalid hostname.' };
     const cfg = await getConfig();
+    if (!cfg.aghUrl) {
+        return { ok: false, configured: false, message: 'Set the AdGuard Home URL in Settings.' };
+    }
     const check = await aghApi('/control/filtering/check_host?name=' + encodeURIComponent(host));
     if (check.session_expired) {
         return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
@@ -509,6 +573,10 @@ async function handleGetSite(msg) {
 }
 
 async function handleGetProtection() {
+    const cfg = await getConfig();
+    if (!cfg.aghUrl) {
+        return { ok: false, configured: false, message: 'Set the AdGuard Home URL in Settings.' };
+    }
     const r = await aghApi('/control/status');
     if (r.session_expired) {
         return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
@@ -524,6 +592,10 @@ async function handleGetProtection() {
 }
 
 async function handleSetProtection(msg) {
+    const cfg = await getConfig();
+    if (!cfg.aghUrl) {
+        return { ok: false, configured: false, message: 'Set the AdGuard Home URL in Settings.' };
+    }
     const body = { enabled: !!msg.enabled };
     if (!msg.enabled) {
         const duration = Number(msg.duration);
@@ -538,6 +610,10 @@ async function handleSetProtection(msg) {
 }
 
 async function handleGetStats() {
+    const cfg = await getConfig();
+    if (!cfg.aghUrl) {
+        return { ok: false, configured: false, message: 'Set the AdGuard Home URL in Settings.' };
+    }
     const r = await aghApi('/control/stats');
     if (r.session_expired) {
         return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
@@ -674,6 +750,7 @@ async function getCosmeticForHost(host, force) {
     return {
         ok: true,
         enabled: cfg.cosmeticEnabled,
+        configured: cfg.configured,
         saveToAgh: cfg.cosmeticSaveToAgh,
         rules: all,
         active: built.hide.length + built.style.length,
@@ -738,7 +815,7 @@ async function handleAddCosmetic(msg) {
         } else {
             aghError = status.session_expired
                 ? 'the AdGuard Home session expired'
-                : 'AdGuard Home is unavailable';
+                : (status.message || 'AdGuard Home is unavailable');
         }
     }
 
@@ -814,6 +891,7 @@ async function handleGetCosmeticRules(msg) {
     return {
         ok: true,
         enabled: cfg.cosmeticEnabled,
+        configured: cfg.configured,
         aghRules: agh.rules,
         localRules,
         stale: !!agh.stale,
@@ -978,7 +1056,7 @@ async function handleNavigationError(details) {
     if (details.error === 'NS_ERROR_ABORT') return;
 
     const cfg = await getConfig();
-    if (!cfg.autoBlockPage) return;
+    if (!cfg.autoBlockPage || !cfg.aghUrl) return;
 
     const host = hostFromUrl(details.url);
     if (!host) return;
@@ -1017,6 +1095,9 @@ browser.webNavigation.onErrorOccurred.addListener((details) => {
 browser.webNavigation.onCommitted.addListener((details) => {
     /* User-origin CSS is cleared by the navigation; drop the bookkeeping. */
     cosmeticCssByTab.delete(cosmeticCssKey(details.tabId, details.frameId));
+    if (details.frameId === 0) {
+        void injectAghContentScripts(details.tabId, details.url, true);
+    }
 });
 
 browser.tabs.onRemoved.addListener((tabId) => {
@@ -1059,6 +1140,7 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
 
 rebuildCosmeticMenu();
 void restorePendingUnblocks();
+void refreshAghContentScripts();
 
 browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (!msg || typeof msg.type !== 'string') return undefined;
@@ -1066,12 +1148,14 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'get-config') {
         getConfig().then((cfg) => sendResponse({
             aghUrl: cfg.aghUrl,
+            configured: cfg.configured,
             clientName: cfg.clientName,
             autoBlockPage: cfg.autoBlockPage,
             cosmeticEnabled: cfg.cosmeticEnabled,
             cosmeticSaveToAgh: cfg.cosmeticSaveToAgh,
         })).catch(() => sendResponse({
-            aghUrl: DEFAULT_AGH,
+            aghUrl: '',
+            configured: false,
             clientName: '',
             autoBlockPage: true,
             cosmeticEnabled: true,
@@ -1180,6 +1264,14 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         handleApplyCosmeticCss(msg, sender).then(sendResponse).catch((e) => sendResponse({
             ok: false,
             error: String(e),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'refresh-agh-content') {
+        refreshAghContentScripts().then(() => sendResponse({ ok: true })).catch((e) => sendResponse({
+            ok: false,
+            message: String(e),
         }));
         return true;
     }

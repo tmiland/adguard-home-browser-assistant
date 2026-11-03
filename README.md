@@ -87,7 +87,9 @@ No password is stored. The add-on reuses the `agh_session` cookie:
   tab (`src/api-bridge.js`), opening an inactive tab if necessary.
 
 There is no universal AGH URL. Set yours in **Settings**; the examples use
-`https://adguard.example.com` or `http://192.168.1.1:3000`.
+`https://adguard.example.com` or `http://192.168.1.1:3000`. The query-log
+buttons and Quick unblock widget are injected only on the origin you configure;
+no AGH host is hardcoded.
 
 ## Install (temporary)
 

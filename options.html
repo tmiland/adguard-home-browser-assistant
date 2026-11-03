@@ -29,8 +29,8 @@
             <form id="settingsForm" class="form">
                 <label class="field">
                     <span>AdGuard Home URL</span>
-                    <input id="aghUrl" type="url" required placeholder="https://adguard.home.tmiland.com" autocomplete="off" spellcheck="false">
-                    <small>The web UI origin, e.g. <code>https://adguard.home.tmiland.com</code>.</small>
+                    <input id="aghUrl" type="url" required placeholder="https://adguard.example.com" autocomplete="off" spellcheck="false">
+                    <small>The web UI origin, e.g. <code>https://adguard.example.com</code> or <code>http://192.168.1.1:3000</code>.</small>
                 </label>
 
                 <label class="field">
@@ -80,7 +80,7 @@
                 <div class="actions">
                     <button class="button button-primary" type="submit">Save</button>
                     <button class="button button-secondary" id="testBtn" type="button">Test AGH session</button>
-                    <a class="button button-ghost" id="adminLink" href="https://adguard.home.tmiland.com" target="_blank" rel="noopener noreferrer">Open AdGuard Home</a>
+                    <a class="button button-ghost" id="adminLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Open AdGuard Home</a>
                 </div>
                 <p class="status" id="status" role="status" aria-live="polite"></p>
             </form>
@@ -89,7 +89,7 @@
         </main>
 
         <footer class="footer">
-            <span>AdGuard Home Browser Assistant 0.4.5</span>
+            <span>AdGuard Home Browser Assistant 0.4.6</span>
             <span class="dot">·</span>
             <a href="https://github.com/tmiland/adguard-home-browser-assistant" target="_blank" rel="noopener noreferrer">GitHub</a>
         </footer>

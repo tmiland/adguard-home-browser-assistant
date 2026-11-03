@@ -6,7 +6,6 @@
         ? browser
         : null;
 
-    const DEFAULT_AGH = 'https://adguard.home.tmiland.com';
     const state = {
         tabId: null,
         url: '',
@@ -14,7 +13,7 @@
         blocked: false,
         client: '',
         target: '',
-        aghUrl: DEFAULT_AGH,
+        aghUrl: '',
         isAgh: false,
         busy: false,
         cosmeticEnabled: true,
@@ -429,9 +428,14 @@
     }
 
     function setLinks(aghUrl, autoBlockPage) {
-        state.aghUrl = aghUrl || DEFAULT_AGH;
-        $('querylogLink').href = state.aghUrl + '/#querylog';
-        $('aghLink').href = state.aghUrl + '/';
+        state.aghUrl = aghUrl || '';
+        const configured = !!state.aghUrl;
+        const querylogLink = $('querylogLink');
+        const aghLink = $('aghLink');
+        querylogLink.hidden = !configured;
+        aghLink.hidden = !configured;
+        querylogLink.href = configured ? state.aghUrl + '/#querylog' : '#';
+        aghLink.href = configured ? state.aghUrl + '/' : '#';
         autoBadge.textContent = autoBlockPage ? 'auto block page' : 'auto off';
         autoBadge.className = 'badge ' + (autoBlockPage ? 'badge-allowed' : 'badge-neutral');
     }
@@ -448,7 +452,7 @@
         const params = new URLSearchParams(location.search);
         const debugHost = (params.get('host') || '').toLowerCase().replace(/\.$/, '');
         let cfg = {
-            aghUrl: DEFAULT_AGH,
+            aghUrl: '',
             clientName: '',
             autoBlockPage: true,
             cosmeticEnabled: true,
@@ -472,6 +476,27 @@
 
         const aghHost = hostOf(state.aghUrl);
         state.isAgh = !!state.host && state.host === aghHost;
+
+        if (!cfg.aghUrl) {
+            hostEl.textContent = state.host || 'No site';
+            siteState.textContent = 'Setup';
+            siteState.className = 'badge badge-neutral';
+            detailsEl.textContent = 'Set your AdGuard Home URL in Settings.';
+            setStatus(siteStatus, 'Open Settings to connect to AdGuard Home.', 'error');
+            toggleBtn.disabled = true;
+            toggleClientBtn.disabled = true;
+            cosmeticState.textContent = 'Setup';
+            cosmeticState.className = 'badge badge-neutral';
+            cosmeticHint.textContent = 'Set your AGH URL first.';
+            pickBtn.disabled = true;
+            protectionState.textContent = 'Setup';
+            protectionState.className = 'badge badge-neutral';
+            pauseBtn.disabled = true;
+            resumeBtn.hidden = true;
+            $('version').textContent = '—';
+            pendingSection.hidden = true;
+            return;
+        }
 
         if (!state.host) {
             hostEl.textContent = 'No site';

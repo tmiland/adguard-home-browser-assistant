@@ -149,7 +149,10 @@
 
     if (api) {
         api.runtime.sendMessage({ type: 'get-config' }).then((cfg) => {
-            if (cfg && cfg.aghUrl) adminLink.href = cfg.aghUrl;
+            if (cfg && cfg.aghUrl) {
+                adminLink.href = cfg.aghUrl;
+                adminLink.hidden = false;
+            }
             if (!client && cfg && cfg.clientName) {
                 client = cfg.clientName;
                 updateClient();

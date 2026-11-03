@@ -20,7 +20,6 @@
     const status = $('status');
     const testBtn = $('testBtn');
 
-    const DEFAULT_AGH = 'https://adguard.home.tmiland.com';
 
     function parseLocalRules(text) {
         return String(text || '')
@@ -86,6 +85,11 @@
                 setRulesStatus((res && res.message) || 'Could not read AdGuard Home rules.', 'error');
                 return;
             }
+            if (res.configured === false) {
+                renderAghRules([]);
+                setRulesStatus('Set the AdGuard Home URL above to load rules.', 'error');
+                return;
+            }
             const displayRules = (Array.isArray(res.aghRules) ? res.aghRules : []).filter(displayableRule);
             renderAghRules(displayRules);
             const count = displayRules.length;
@@ -142,8 +146,14 @@
     }
 
     function updateAdminLink() {
-        const value = normalizeAghUrl(aghUrl.value) || DEFAULT_AGH;
+        const value = normalizeAghUrl(aghUrl.value);
+        if (!value) {
+            adminLink.href = '#';
+            adminLink.hidden = true;
+            return;
+        }
         adminLink.href = value;
+        adminLink.hidden = false;
     }
 
     async function load() {
@@ -152,14 +162,14 @@
             return;
         }
         const cfg = await api.storage.local.get({
-            aghUrl: DEFAULT_AGH,
+            aghUrl: '',
             clientName: '',
             autoBlockPage: true,
             cosmeticEnabled: true,
             cosmeticSaveToAgh: true,
             cosmeticRules: [],
         });
-        aghUrl.value = cfg.aghUrl || DEFAULT_AGH;
+        aghUrl.value = cfg.aghUrl || '';
         clientName.value = cfg.clientName || '';
         autoBlockPage.checked = cfg.autoBlockPage !== false;
         cosmeticEnabled.checked = cfg.cosmeticEnabled !== false;
@@ -177,7 +187,7 @@
         }
         const url = normalizeAghUrl(aghUrl.value);
         if (!url) {
-            setStatus('Enter a valid AdGuard Home URL, e.g. https://adguard.home.tmiland.com.', 'error');
+            setStatus('Enter a valid AdGuard Home URL, e.g. https://adguard.example.com.', 'error');
             aghUrl.focus();
             return;
         }
@@ -192,6 +202,7 @@
         aghUrl.value = url;
         updateAdminLink();
         setStatus('Saved.', 'success');
+        await api.runtime.sendMessage({ type: 'refresh-agh-content' }).catch(() => {});
         void loadAghRules(true);
     });
 

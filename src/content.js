@@ -16,6 +16,11 @@
 (() => {
     'use strict';
 
+    const pageRoot = document.documentElement;
+    if (window.__aghAssistantContentLoaded || (pageRoot && pageRoot.dataset.aghAssistantContentLoaded === '1')) return;
+    window.__aghAssistantContentLoaded = true;
+    if (pageRoot) pageRoot.dataset.aghAssistantContentLoaded = '1';
+
     const ROW_SEL = '[data-testid="querylog_cell"]';
     const BLOCKED_CLASS = 'logs__row--red';
     const BTN_CLASS = 'aqu-unblock-btn';

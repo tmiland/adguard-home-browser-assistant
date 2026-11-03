@@ -1,6 +1,6 @@
 {
   "name": "AdGuard Home Browser Assistant",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "manifest_version": 2,
   "description": "Unofficial browser assistant for AdGuard Home: current-site block/unblock (permanent or temporary), protection pause, stats, element hiding with a picker, and an automatic HTTPS block page.",
   "homepage_url": "https://github.com/tmiland/adguard-home-browser-assistant",
@@ -36,23 +36,6 @@
     "<all_urls>"
   ],
   "content_scripts": [
-    {
-      "matches": [
-        "http://192.168.1.1/*",
-        "http://192.168.1.1:8088/*",
-        "https://192.168.1.1:1443/*",
-        "http://adguard.home.tmiland.com/*",
-        "https://adguard.home.tmiland.com/*"
-      ],
-      "js": [
-        "src/content.js",
-        "src/api-bridge.js"
-      ],
-      "css": [
-        "src/content.css"
-      ],
-      "run_at": "document_idle"
-    },
     {
       "matches": [
         "<all_urls>"
