@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0 — 2026-11-04
+
+- **Blocklist catalog page** linked from the popup and Settings: browse 7
+  curated packs and 92 curated lists from
+  `tmiland/dns-blocklist-catalog`, search all lists, and see which URLs are
+  already subscribed in AdGuard Home.
+- Import packs or individual lists via `/control/filtering/add_url`, then one
+  `/control/filtering/refresh`; per-list failures and session expiry are
+  reported.
+- The catalog is cached for five minutes, with a forced refresh and a
+  stale-cache fallback.
+- Added catalog validation/selection helpers and tests.
+
 ## 1.0.1 — 2026-11-04
 
 - **Undo** the last block/unblock from the toolbar popup for 60 seconds. The

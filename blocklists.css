@@ -1,0 +1,329 @@
+/* Blocklist catalog page — sits on top of blocked.css + options.css. */
+
+.page-wide {
+    width: min(1120px, 100%);
+}
+
+.page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+}
+
+.page-head .lead {
+    max-width: 720px;
+}
+
+.section {
+    margin-top: 26px;
+}
+
+.section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.section-head h2 {
+    margin: 0;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+}
+
+.list-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.list-search {
+    width: 240px;
+    max-width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg2);
+    color: var(--ink);
+    padding: 7px 10px;
+    font: inherit;
+    font-size: 13px;
+}
+
+.list-search:focus {
+    outline: 2px solid color-mix(in srgb, var(--green) 45%, transparent);
+    outline-offset: 1px;
+}
+
+.pack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 12px;
+}
+
+.pack-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg2);
+}
+
+.pack-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.pack-card h3 {
+    margin: 0;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+}
+
+.pack-tagline {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.pack-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: 11.5px;
+}
+
+.pack-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 4px;
+}
+
+.pack-actions .button {
+    flex: 1;
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-size: 10.5px;
+    font-weight: 650;
+    line-height: 1.6;
+    white-space: nowrap;
+    border: 1px solid var(--line);
+    color: var(--muted);
+}
+
+.pill-low {
+    color: var(--green);
+    border-color: color-mix(in srgb, var(--green) 35%, var(--line));
+    background: color-mix(in srgb, var(--green) 8%, transparent);
+}
+
+.pill-medium {
+    color: #a56a00;
+    border-color: color-mix(in srgb, #a56a00 35%, var(--line));
+    background: color-mix(in srgb, #a56a00 8%, transparent);
+}
+
+.pill-high {
+    color: var(--red);
+    border-color: color-mix(in srgb, var(--red) 35%, var(--line));
+    background: color-mix(in srgb, var(--red) 8%, transparent);
+}
+
+.health {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-size: 10.5px;
+    font-weight: 650;
+    white-space: nowrap;
+    border: 1px solid var(--line);
+    color: var(--muted);
+}
+
+.health-ok {
+    color: var(--green);
+    border-color: color-mix(in srgb, var(--green) 32%, var(--line));
+    background: color-mix(in srgb, var(--green) 7%, transparent);
+}
+
+.health-warn {
+    color: #a56a00;
+    border-color: color-mix(in srgb, #a56a00 32%, var(--line));
+    background: color-mix(in srgb, #a56a00 7%, transparent);
+}
+
+.health-fail {
+    color: var(--red);
+    border-color: color-mix(in srgb, var(--red) 32%, var(--line));
+    background: color-mix(in srgb, var(--red) 7%, transparent);
+}
+
+.list-table {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    overflow: hidden;
+    background: var(--bg2);
+}
+
+.list-row {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) 84px 76px 88px;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 11px;
+    border-top: 1px solid var(--line);
+}
+
+.list-row:first-child {
+    border-top: 0;
+}
+
+.list-row.is-subscribed {
+    opacity: 0.62;
+}
+
+.list-row input[type="checkbox"] {
+    margin: 0;
+}
+
+.list-main {
+    min-width: 0;
+}
+
+.list-name {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.list-name a {
+    color: inherit;
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.list-name a:hover {
+    color: var(--green);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.list-desc {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 11.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.list-topics {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.topic {
+    font-size: 10px;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 5px;
+}
+
+.list-entries {
+    color: var(--muted);
+    font-size: 11.5px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.list-subscribed {
+    text-align: right;
+}
+
+.import-bar {
+    position: sticky;
+    bottom: 12px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--card);
+    box-shadow: var(--shadow);
+}
+
+.import-bar[hidden] {
+    display: none;
+}
+
+.import-bar span {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.banner {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, #a56a00 40%, var(--line));
+    border-radius: 9px;
+    background: color-mix(in srgb, #a56a00 8%, transparent);
+    color: var(--ink);
+    font-size: 12.5px;
+}
+
+.banner[hidden] {
+    display: none;
+}
+
+.banner a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+    .list-row {
+        grid-template-columns: 22px minmax(0, 1fr) 72px;
+    }
+
+    .list-entries,
+    .list-subscribed {
+        display: none;
+    }
+
+    .list-search {
+        width: 100%;
+    }
+}
