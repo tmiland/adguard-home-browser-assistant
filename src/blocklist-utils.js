@@ -84,8 +84,12 @@
         const skipped = [];
         for (const list of Array.isArray(lists) ? lists : []) {
             if (!list) continue;
-            if (existing.has(list.url)) skipped.push(list);
-            else toAdd.push(list);
+            if (existing.has(list.url)) {
+                skipped.push(list);
+            } else {
+                existing.add(list.url);
+                toAdd.push(list);
+            }
         }
         return { toAdd, skipped };
     }

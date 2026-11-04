@@ -8,6 +8,7 @@
     "scripts": [
       "src/cosmetic-rules.js",
       "src/rule-utils.js",
+      "src/blocklist-utils.js",
       "src/background.js"
     ]
   },

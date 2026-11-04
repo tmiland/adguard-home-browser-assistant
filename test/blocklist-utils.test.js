@@ -79,6 +79,16 @@ test('partitionImport skips URLs already in AdGuard Home', () => {
     assert.deepEqual(result.skipped.map((list) => list.id), ['beta']);
 });
 
+test('partitionImport dedupes repeated URLs in one selection', () => {
+    const lists = [
+        { id: 'first', url: 'https://example.com/same.txt' },
+        { id: 'second', url: 'https://example.com/same.txt' },
+    ];
+    const result = B.partitionImport(lists, []);
+    assert.deepEqual(result.toAdd.map((list) => list.id), ['first']);
+    assert.deepEqual(result.skipped.map((list) => list.id), ['second']);
+});
+
 test('searchLists matches names, descriptions, maintainers and topics', () => {
     const lists = catalog().lists;
     assert.deepEqual(B.searchLists(lists, 'BETA').map((list) => list.id), ['beta']);

@@ -655,6 +655,214 @@ async function handleUndo(msg) {
     return { ok: true, host: snapshot.host, message: 'Previous rules restored.' };
 }
 
+/* -------------------------------------------------------------------------
+ * Blocklist catalog: public, health-checked packs from
+ * github.com/tmiland/dns-blocklist-catalog. Only the catalog is fetched;
+ * no user data leaves the browser.
+ */
+
+const CATALOG_URL = 'https://raw.githubusercontent.com/tmiland/dns-blocklist-catalog/main/data/catalog.json';
+const CATALOG_KEY = 'blocklistCatalog';
+const CATALOG_TTL_MS = 5 * 60 * 1000;
+const CATALOG_TIMEOUT_MS = 15 * 1000;
+
+async function readCatalogCache() {
+    try {
+        const stored = await browser.storage.local.get({ [CATALOG_KEY]: null });
+        const entry = stored[CATALOG_KEY];
+        if (!entry || typeof entry !== 'object' || !entry.data) return null;
+        const check = AGHBlocklistUtils.validateCatalog(entry.data);
+        if (!check.ok) return null;
+        return entry;
+    } catch (_) {
+        return null;
+    }
+}
+
+async function fetchCatalogRemote() {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CATALOG_TIMEOUT_MS);
+    try {
+        const response = await fetch(CATALOG_URL, {
+            cache: 'no-cache',
+            signal: controller.signal,
+            headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        const check = AGHBlocklistUtils.validateCatalog(data);
+        if (!check.ok) throw new Error(check.message);
+        return check.catalog;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function getCatalog(force) {
+    const cached = await readCatalogCache();
+    const now = Date.now();
+    if (!force && cached && now - Number(cached.fetchedAt || 0) < CATALOG_TTL_MS) {
+        return {
+            ok: true,
+            catalog: cached.data,
+            cached: true,
+            stale: false,
+            fetched_at: Number(cached.fetchedAt) || 0,
+            error: '',
+        };
+    }
+
+    try {
+        const catalog = await fetchCatalogRemote();
+        const fetchedAt = Date.now();
+        await browser.storage.local.set({ [CATALOG_KEY]: { data: catalog, fetchedAt } });
+        return { ok: true, catalog, cached: false, stale: false, fetched_at: fetchedAt, error: '' };
+    } catch (e) {
+        if (cached) {
+            return {
+                ok: true,
+                catalog: cached.data,
+                cached: true,
+                stale: true,
+                fetched_at: Number(cached.fetchedAt) || 0,
+                error: String(e),
+            };
+        }
+        return { ok: false, message: 'Could not load the blocklist catalog: ' + String(e) };
+    }
+}
+
+async function handleGetBlocklistCatalog(msg) {
+    return getCatalog(!!(msg && msg.force));
+}
+
+async function handleGetAghFilters() {
+    const cfg = await getConfig();
+    if (!cfg.aghUrl) {
+        return { ok: false, configured: false, message: 'Set the AdGuard Home URL in Settings.' };
+    }
+    const status = await aghApi('/control/filtering/status');
+    if (status.session_expired) {
+        return { ok: false, configured: true, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+    }
+    if (!status.ok || !status.data) {
+        return { ok: false, configured: true, message: 'Could not read AdGuard Home filters.' };
+    }
+    const filters = Array.isArray(status.data.filters)
+        ? status.data.filters.map((filter) => ({
+            name: String((filter && filter.name) || ''),
+            url: String((filter && filter.url) || ''),
+            enabled: !(filter && filter.enabled === false),
+            rules_count: Number((filter && filter.rules_count) || 0),
+        })).filter((filter) => filter.url)
+        : [];
+    return { ok: true, configured: true, filters };
+}
+
+function aghErrorText(result) {
+    if (!result) return 'AdGuard Home did not respond.';
+    if (result.message) return result.message;
+    if (result.text) return String(result.text).slice(0, 300);
+    return 'HTTP ' + (result.status || 'error');
+}
+
+async function refreshAghFilters() {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        const result = await aghApi('/control/filtering/refresh', { method: 'POST', body: {} });
+        if (result.ok) return { ok: true, status: result.status || 200 };
+        if (result.session_expired) {
+            return { ok: false, session_expired: true, message: 'AdGuard Home session expired during refresh.' };
+        }
+        const rateLimited = result.status === 429 || /rate|too many|limit/i.test(result.text || '');
+        if (!rateLimited || attempt === 2) {
+            return { ok: false, status: result.status || 0, message: aghErrorText(result) };
+        }
+        await sleep(2000);
+    }
+    return { ok: false, message: 'AdGuard Home refresh failed.' };
+}
+
+async function handleImportBlocklists(msg) {
+    const cfg = await getConfig();
+    if (!cfg.aghUrl) {
+        return { ok: false, configured: false, message: 'Set the AdGuard Home URL in Settings.' };
+    }
+
+    const loaded = await getCatalog(false);
+    if (!loaded.ok) return loaded;
+    const selection = AGHBlocklistUtils.resolveSelection(
+        loaded.catalog,
+        msg && msg.packIds,
+        msg && msg.listIds
+    );
+    if (!selection.length) {
+        return { ok: false, message: 'Select at least one blocklist.' };
+    }
+
+    const status = await aghApi('/control/filtering/status');
+    if (status.session_expired) {
+        return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+    }
+    if (!status.ok || !status.data) {
+        return { ok: false, message: 'Could not read AdGuard Home filters.' };
+    }
+
+    const existingUrls = Array.isArray(status.data.filters)
+        ? status.data.filters.map((filter) => filter && filter.url).filter(Boolean)
+        : [];
+    const { toAdd, skipped } = AGHBlocklistUtils.partitionImport(selection, existingUrls);
+
+    const added = [];
+    const failed = [];
+    for (const list of toAdd) {
+        const post = await aghApi('/control/filtering/add_url', {
+            method: 'POST',
+            body: { name: list.name, url: list.url, whitelist: false },
+        });
+        if (post.session_expired) {
+            return {
+                ok: false,
+                session_expired: true,
+                added,
+                skipped,
+                failed,
+                message: 'AdGuard Home session expired during the import.',
+            };
+        }
+        if (!post.ok) {
+            failed.push({
+                id: list.id,
+                name: list.name,
+                url: list.url,
+                message: aghErrorText(post),
+            });
+            continue;
+        }
+        added.push({ id: list.id, name: list.name, url: list.url });
+    }
+
+    let refresh = null;
+    if (added.length) refresh = await refreshAghFilters();
+    const message = added.length
+        ? 'Imported ' + added.length + ' list' + (added.length === 1 ? '' : 's') +
+            (failed.length ? '; ' + failed.length + ' failed.' : '.')
+        : 'All selected lists are already subscribed.';
+
+    return {
+        ok: true,
+        added,
+        skipped: skipped.map((list) => ({ id: list.id, name: list.name, url: list.url })),
+        failed,
+        refresh,
+        session_expired: !!(refresh && refresh.session_expired),
+        catalog: {
+            content_hash: loaded.catalog.content_hash,
+            health_checked_at: loaded.catalog.health_checked_at,
+        },
+        message,
+    };
+}
+
 async function handleGetSite(msg) {
     const host = normalizeHost(msg.host);
     if (!host) return { ok: false, message: 'Invalid hostname.' };
@@ -1324,6 +1532,30 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         handleGetStats().then(sendResponse).catch((e) => sendResponse({
             ok: false,
             message: 'Could not read stats: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'get-blocklist-catalog') {
+        handleGetBlocklistCatalog(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not load the blocklist catalog: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'get-agh-filters') {
+        handleGetAghFilters().then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Could not read AdGuard Home filters: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'import-blocklists') {
+        handleImportBlocklists(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Blocklist import failed: ' + (e && e.message ? e.message : String(e)),
         }));
         return true;
     }
