@@ -17,7 +17,7 @@ the browser-side control surface.
 
 > Not affiliated with AdGuard. AdGuard Home is a separate open-source project.
 
-**Status:** v1.2.0 · Firefox MV3 · AMO 1.1.0 pending review.
+**Status:** v1.2.0 · Firefox MV3 · AMO 1.2.0 pending review.
 
 ## Screenshots
 
