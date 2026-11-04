@@ -17,7 +17,7 @@ the browser-side control surface.
 
 > Not affiliated with AdGuard. AdGuard Home is a separate open-source project.
 
-**Status:** v1.0.1 · Firefox MV3 · AMO 1.0.0 pending review.
+**Status:** v1.1.0 · Firefox MV3 · AMO 1.0.0 pending review.
 
 ## Screenshots
 
@@ -95,6 +95,22 @@ editable in AGH while the browser does the hiding.
 AGH user rules are read through the same logged-in session; local rules are
 stored with `browser.storage.local`. Scriptlet/JS rules (`#%#`, `#@%#`) are
 deliberately not executed.
+
+### Blocklist catalog
+
+The toolbar popup and Settings link to a dedicated **Blocklists** page backed by
+[`tmiland/dns-blocklist-catalog`](https://github.com/tmiland/dns-blocklist-catalog).
+
+- **7 packs** (Starter, Balanced, Strict, Security, Family, Privacy, Smart home)
+  covering **92 curated lists**, with health data where available.
+- Lists already present in AGH are detected by URL and marked **Subscribed**;
+  packs offer **Add missing**.
+- Import uses AGH's `/control/filtering/add_url` for each missing list, then one
+  `/control/filtering/refresh`.
+- Search all lists, inspect topics and health, or import an individual selection.
+- Health is advisory: warnings are shown, but the import is not silently skipped.
+- The catalog is cached for five minutes; **Refresh catalog** forces an update and
+  the page falls back to the cached copy when GitHub is unreachable.
 
 ### Query-log buttons and Quick unblock
 
@@ -186,8 +202,11 @@ Firefox extension
 - No credentials are stored.
 - No telemetry, analytics, or remote logging.
 - The AGH session cookie is used only for AGH API calls.
-- Local rules, settings, pending temporary unblocks, and the 60-second undo
-  snapshot stay in `browser.storage.local`.
+- The public blocklist catalog is downloaded from
+  `raw.githubusercontent.com/tmiland/dns-blocklist-catalog`; only the catalog is
+  fetched, no user data is sent.
+- Local rules, settings, pending temporary unblocks, the catalog cache, and the
+  60-second undo snapshot stay in `browser.storage.local`.
 - `<all_urls>` is required to detect failed navigations, apply element-hiding
   rules, and inject the AGH helper on the origin you configure.
 - `tabs`, `webNavigation`, `scripting`, `alarms`, `contextMenus`, and `storage`
@@ -233,10 +252,12 @@ web-ext build
 Main files:
 
 - `src/background.js` — MV3 event page, AGH API, block page, unblocking,
-  protection, stats, alarms, dynamic injection.
+  protection, stats, alarms, dynamic injection, catalog fetch/import.
 - `src/rule-utils.js` — pure allow/block rule builder, undo planning, duration
   labels.
 - `src/list-utils.js` — pure rules-list filter used by Settings and the tests.
+- `src/blocklist-utils.js` — catalog validation, pack/list selection, URL
+  dedupe, search, and health labels.
 - `src/cosmetic-rules.js` — Adblock cosmetic parser/matcher, including extended
   selectors.
 - `src/cosmetic.js` — element hiding, extended-CSS runtime, picker.
@@ -245,7 +266,8 @@ Main files:
 - `popup.html|css|js` — toolbar popup.
 - `blocked.html|css|js` — automatic block page.
 - `options.html|css|js` — settings.
-- `test/` — parser and rule-builder tests.
+- `blocklists.html|css|js` — blocklist catalog, pack/list browsing, and imports.
+- `test/` — parser, rule-builder, and catalog helper tests.
 
 ## Limitations
 

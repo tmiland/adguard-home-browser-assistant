@@ -252,6 +252,12 @@
                 text.textContent = list.name;
                 name.appendChild(text);
             }
+            if (list.status && list.status !== 'active') {
+                const statusBadge = document.createElement('span');
+                statusBadge.className = 'pill ' + (list.status === 'deprecated' ? 'pill-high' : 'pill-medium');
+                statusBadge.textContent = list.status;
+                name.appendChild(statusBadge);
+            }
             const desc = document.createElement('div');
             desc.className = 'list-desc';
             desc.textContent = list.description || '';
