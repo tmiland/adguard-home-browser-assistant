@@ -221,7 +221,7 @@ hostname, so every subdomain of that domain works.
 
 ```sh
 # Unit tests
-node --test test/
+node --test test/*.test.js
 
 # Firefox validation
 web-ext lint
