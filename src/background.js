@@ -739,14 +739,14 @@ async function handleGetBlocklistCatalog(msg) {
 async function handleGetAghFilters() {
     const cfg = await getConfig();
     if (!cfg.aghUrl) {
-        return { ok: false, configured: false, message: 'Set the AdGuard Home URL in Settings.' };
+        return { ok: false, configured: false, agh_url: '', message: 'Set the AdGuard Home URL in Settings.' };
     }
     const status = await aghApi('/control/filtering/status');
     if (status.session_expired) {
-        return { ok: false, configured: true, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+        return { ok: false, configured: true, agh_url: cfg.aghUrl, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
     }
     if (!status.ok || !status.data) {
-        return { ok: false, configured: true, message: 'Could not read AdGuard Home filters.' };
+        return { ok: false, configured: true, agh_url: cfg.aghUrl, message: 'Could not read AdGuard Home filters.' };
     }
     const filters = Array.isArray(status.data.filters)
         ? status.data.filters.map((filter) => ({
@@ -756,7 +756,7 @@ async function handleGetAghFilters() {
             rules_count: Number((filter && filter.rules_count) || 0),
         })).filter((filter) => filter.url)
         : [];
-    return { ok: true, configured: true, filters };
+    return { ok: true, configured: true, agh_url: cfg.aghUrl, filters };
 }
 
 function aghErrorText(result) {
