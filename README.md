@@ -31,6 +31,12 @@ the browser-side control surface.
   <sub>Quick unblock widget on the AdGuard Home web interface.</sub>
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/blocklists.png" alt="Blocklist catalog page showing seven curated packs and the searchable list table" width="820">
+  <br>
+  <sub>Blocklist catalog: 7 curated packs, 92 lists, health and subscription state.</sub>
+</p>
+
 ## Features
 
 ### Toolbar popup
