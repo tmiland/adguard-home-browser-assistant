@@ -410,6 +410,41 @@ async function restorePendingUnblocks() {
     for (const entry of list) schedulePendingUnblock(entry);
 }
 
+const UNDO_TTL_MS = 60 * 1000;
+const UNDO_KEY = 'lastRuleUndo';
+
+function undoStorage() {
+    return (browser.storage && browser.storage.session) ? browser.storage.session : browser.storage.local;
+}
+
+async function getLastUndo() {
+    try {
+        const stored = await undoStorage().get({ [UNDO_KEY]: null });
+        return stored[UNDO_KEY] || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+async function saveLastUndo(snapshot) {
+    try {
+        await undoStorage().set({ [UNDO_KEY]: snapshot });
+        return true;
+    } catch (_) {
+        /* Undo is best-effort; never fail a rule change because the snapshot
+           could not be stored. */
+        return false;
+    }
+}
+
+async function clearLastUndo() {
+    try {
+        await undoStorage().remove(UNDO_KEY);
+    } catch (_) {
+        /* A missing snapshot is the same as a cleared one. */
+    }
+}
+
 async function handleToggle(msg) {
     const action = msg.action === 'block' ? 'block' : 'unblock';
     const host = normalizeHost(msg.host);
@@ -460,8 +495,9 @@ async function handleToggle(msg) {
 
     const next = rules.filter((r) => !removeRules.includes(r));
     if (!next.includes(addRule)) next.push(addRule);
+    const ruleChanged = JSON.stringify(next) !== JSON.stringify(rules);
 
-    if (JSON.stringify(next) !== JSON.stringify(rules)) {
+    if (ruleChanged) {
         const post = await aghApi('/control/filtering/set_rules', { method: 'POST', body: { rules: next } });
         if (post.session_expired) {
             return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
@@ -470,6 +506,12 @@ async function handleToggle(msg) {
             return { ok: false, message: 'AdGuard Home rejected the rule update.' };
         }
     }
+
+    const pendingBefore = await getPendingUnblocks();
+    const cancelledRule = action === 'block' ? hostAllowRule : (temporary ? '' : allowRule);
+    const cancelledPending = cancelledRule
+        ? pendingBefore.find((entry) => entry.rule === cancelledRule) || null
+        : null;
 
     let temporaryUntil = 0;
     if (action === 'block') {
@@ -505,7 +547,7 @@ async function handleToggle(msg) {
         if (r.ok && r.data) {
             const filtered = /^Filtered/.test(r.data.reason || '');
             if ((action === 'block' && filtered) || (action === 'unblock' && !filtered)) {
-                return {
+                const response = {
                     ok: true,
                     blocked: action === 'block',
                     client,
@@ -518,6 +560,27 @@ async function handleToggle(msg) {
                         ? 'Blocked.'
                         : (temporaryUntil > 0 ? 'Unblocked for ' + AGHRuleUtils.durationLabel(durationMs) + '.' : 'Unblocked.'),
                 };
+                if (!temporary && (ruleChanged || cancelledPending)) {
+                    const undoId = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+                    const expiresAt = Date.now() + UNDO_TTL_MS;
+                    const saved = await saveLastUndo({
+                        id: undoId,
+                        createdAt: Date.now(),
+                        expiresAt,
+                        priorRules: rules,
+                        appliedRules: next,
+                        ruleChanged,
+                        rule: addRule,
+                        host,
+                        target,
+                        clientOnly: !!msg.clientOnly,
+                        client,
+                        action,
+                        cancelledPending,
+                    });
+                    if (saved) response.undo = { id: undoId, expiresAt };
+                }
+                return response;
             }
         }
         await sleep(1500);
@@ -537,6 +600,57 @@ async function handleToggle(msg) {
 
 async function handleUnblock(msg) {
     return handleToggle(Object.assign({}, msg, { action: 'unblock' }));
+}
+
+async function handleUndo(msg) {
+    const snapshot = await getLastUndo();
+    if (!snapshot || (msg.id && msg.id !== snapshot.id)) {
+        return { ok: false, reason: 'missing', message: 'Undo is no longer available.' };
+    }
+
+    const cfg = await getConfig();
+    if (!cfg.aghUrl) {
+        return { ok: false, configured: false, message: 'Set the AdGuard Home URL in Settings.' };
+    }
+
+    const status = await aghApi('/control/filtering/status');
+    if (status.session_expired) {
+        return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+    }
+    if (!status.ok || !status.data || !Array.isArray(status.data.user_rules)) {
+        return { ok: false, message: 'Could not read AdGuard Home filtering rules.' };
+    }
+
+    const plan = AGHRuleUtils.planUndo(snapshot, status.data.user_rules, Date.now());
+    if (!plan.ok) {
+        await clearLastUndo();
+        let message = 'Undo is no longer available.';
+        if (plan.reason === 'expired') message = 'The undo window has passed.';
+        else if (plan.reason === 'changed') message = 'The rules changed elsewhere; undo was skipped.';
+        return { ok: false, reason: plan.reason, message };
+    }
+
+    if (JSON.stringify(plan.rules) !== JSON.stringify(status.data.user_rules)) {
+        const post = await aghApi('/control/filtering/set_rules', {
+            method: 'POST',
+            body: { rules: plan.rules },
+        });
+        if (post.session_expired) {
+            return { ok: false, session_expired: true, message: 'AdGuard Home session expired. Log in and try again.' };
+        }
+        if (!post.ok) {
+            return { ok: false, message: 'AdGuard Home rejected the undo.' };
+        }
+    }
+
+    await cancelPendingForRule(snapshot.rule);
+    if (plan.restorePending) await addPendingUnblock(plan.restorePending);
+    await clearLastUndo();
+
+    /* Flush AGH's DNS cache. Empty-body POST must not carry Content-Type. */
+    await aghApi('/control/cache_clear', { method: 'POST' });
+
+    return { ok: true, host: snapshot.host, message: 'Previous rules restored.' };
 }
 
 async function handleGetSite(msg) {
@@ -1168,6 +1282,14 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         handleToggle(msg).then(sendResponse).catch((e) => sendResponse({
             ok: false,
             message: 'Rule update failed: ' + (e && e.message ? e.message : String(e)),
+        }));
+        return true;
+    }
+
+    if (msg.type === 'undo-toggle') {
+        handleUndo(msg).then(sendResponse).catch((e) => sendResponse({
+            ok: false,
+            message: 'Undo failed: ' + (e && e.message ? e.message : String(e)),
         }));
         return true;
     }
