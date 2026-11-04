@@ -32,12 +32,12 @@ jobs:
         run: >-
           npx --yes web-ext@10.8.0 lint
           --source-dir .
-          --ignore-files "docs/**" "web-ext-artifacts/**" "test/**" ".github/**"
+          --ignore-files "docs" "test" ".github" "AGENTS.md" "web-ext-artifacts"
 
       - name: Build extension
         run: >-
           npx --yes web-ext@10.8.0 build
           --source-dir .
-          --ignore-files "docs/**" "web-ext-artifacts/**" "test/**" ".github/**"
+          --ignore-files "docs" "test" ".github" "AGENTS.md" "web-ext-artifacts"
           --artifacts-dir "$RUNNER_TEMP/artifacts"
           --overwrite-dest
