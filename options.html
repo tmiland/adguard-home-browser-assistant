@@ -69,6 +69,7 @@
                         <span>Rules from AdGuard Home</span>
                         <button class="button button-ghost button-small" id="refreshRulesBtn" type="button">Refresh</button>
                     </div>
+                    <input class="rulesfilter" id="rulesFilter" type="search" placeholder="Filter rules…" aria-label="Filter AdGuard Home rules">
                     <div class="rulelist" id="aghRules">
                         <p class="rule-empty">Loading…</p>
                     </div>
@@ -94,6 +95,7 @@
             <a href="https://github.com/tmiland/adguard-home-browser-assistant" target="_blank" rel="noopener noreferrer">GitHub</a>
         </footer>
     </div>
+    <script src="src/list-utils.js"></script>
     <script src="options.js"></script>
 </body>
 </html>

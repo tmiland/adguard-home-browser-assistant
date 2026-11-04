@@ -117,6 +117,22 @@
     font-size: 12.5px;
 }
 
+.rulesfilter {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg2);
+    color: var(--ink);
+    padding: 7px 10px;
+    font: inherit;
+    font-size: 13px;
+}
+
+.rulesfilter:focus {
+    outline: 2px solid color-mix(in srgb, var(--green) 45%, transparent);
+    outline-offset: 1px;
+}
+
 .rulelist {
     max-height: 230px;
     overflow: auto;
