@@ -1,6 +1,6 @@
 {
   "name": "AdGuard Home Browser Assistant",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "manifest_version": 3,
   "description": "Unofficial browser assistant for AdGuard Home: current-site block/unblock (permanent or temporary), protection pause, stats, element hiding with a picker, and an automatic HTTPS block page.",
   "homepage_url": "https://github.com/tmiland/adguard-home-browser-assistant",

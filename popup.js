@@ -20,6 +20,8 @@
         cosmeticCount: 0,
         pending: [],
         pendingTimer: null,
+        undo: null,
+        undoTimer: null,
     };
 
     const siteState = $('siteState');
@@ -28,6 +30,9 @@
     const toggleBtn = $('toggleBtn');
     const toggleClientBtn = $('toggleClientBtn');
     const siteStatus = $('siteStatus');
+    const undoRow = $('undoRow');
+    const undoBtn = $('undoBtn');
+    const undoHint = $('undoHint');
     const protectionState = $('protectionState');
     const pauseSelect = $('pauseSelect');
     const pauseBtn = $('pauseBtn');
@@ -96,9 +101,31 @@
         detailsEl.textContent = rows.join(' · ');
     }
 
-    async function loadSite() {
+    function hideUndo() {
+        if (state.undoTimer) {
+            window.clearTimeout(state.undoTimer);
+            state.undoTimer = null;
+        }
+        state.undo = null;
+        undoRow.hidden = true;
+        undoBtn.disabled = false;
+        undoHint.textContent = 'Rule changed';
+    }
+
+    function showUndo(undo) {
+        hideUndo();
+        const expiresAt = Number(undo && undo.expiresAt) || 0;
+        const remaining = expiresAt - Date.now();
+        if (!undo || !undo.id || remaining <= 0) return;
+        state.undo = undo;
+        undoRow.hidden = false;
+        undoHint.textContent = 'Rule changed';
+        state.undoTimer = window.setTimeout(hideUndo, remaining);
+    }
+
+    async function loadSite(keepStatus) {
         if (!state.host || state.isAgh) return;
-        setStatus(siteStatus, 'Checking AdGuard Home…');
+        if (!keepStatus) setStatus(siteStatus, 'Checking AdGuard Home…');
         try {
             const res = await api.runtime.sendMessage({
                 type: 'get-site',
@@ -116,7 +143,7 @@
                 return;
             }
             updateSite(res);
-            setStatus(siteStatus, '');
+            if (keepStatus !== true) setStatus(siteStatus, '');
         } catch (e) {
             setStatus(siteStatus, 'Could not check the site: ' + (e && e.message ? e.message : String(e)), 'error');
         }
@@ -124,6 +151,7 @@
 
     async function toggleSite(clientOnly) {
         if (state.busy || !state.host || state.isAgh || !api) return;
+        hideUndo();
         state.busy = true;
         setSiteButtons(state.blocked);
         const action = state.blocked ? 'unblock' : 'block';
@@ -148,10 +176,10 @@
                 setSiteBadge(state.blocked);
                 setStatus(siteStatus, res.message || (state.blocked ? 'Blocked.' : 'Unblocked.'), 'success');
                 setSiteButtons(state.blocked);
+                showUndo(res.undo);
                 if (state.tabId) {
                     window.setTimeout(() => {
                         api.tabs.reload(state.tabId).catch(() => {});
-                        window.setTimeout(() => window.close(), 500);
                     }, 350);
                 }
                 return;
@@ -161,6 +189,41 @@
             setStatus(siteStatus, 'Rule update failed: ' + (e && e.message ? e.message : String(e)), 'error');
         } finally {
             state.busy = false;
+            setSiteButtons(state.blocked);
+        }
+    }
+
+    async function undoLast() {
+        if (!api || !state.undo || state.busy) return;
+        const undo = state.undo;
+        state.busy = true;
+        undoBtn.disabled = true;
+        setSiteButtons(state.blocked);
+        setStatus(siteStatus, 'Restoring previous rules…');
+        try {
+            const res = await api.runtime.sendMessage({ type: 'undo-toggle', id: undo.id });
+            if (!res || res.session_expired) {
+                sessionLink(siteStatus);
+                return;
+            }
+            if (!res.ok) {
+                setStatus(siteStatus, res.message || 'Undo failed.', 'error');
+                if (res.reason) hideUndo();
+                return;
+            }
+            hideUndo();
+            setStatus(siteStatus, res.message || 'Previous rules restored.', 'success');
+            if (state.tabId) {
+                api.tabs.reload(state.tabId).catch(() => {});
+                window.setTimeout(() => {
+                    if (state.host) void loadSite(true);
+                }, 7000);
+            }
+        } catch (e) {
+            setStatus(siteStatus, 'Undo failed: ' + (e && e.message ? e.message : String(e)), 'error');
+        } finally {
+            state.busy = false;
+            undoBtn.disabled = false;
             setSiteButtons(state.blocked);
         }
     }
@@ -521,6 +584,7 @@
 
     toggleBtn.addEventListener('click', () => { void toggleSite(false); });
     toggleClientBtn.addEventListener('click', () => { void toggleSite(true); });
+    undoBtn.addEventListener('click', () => { void undoLast(); });
     pickBtn.addEventListener('click', () => { void pickElement(); });
     cosmeticSettingsBtn.addEventListener('click', openCosmeticSettings);
     pauseBtn.addEventListener('click', () => { void setProtectionState(false, Number(pauseSelect.value) || 30000); });

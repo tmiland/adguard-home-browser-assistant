@@ -240,6 +240,35 @@ section {
     text-underline-offset: 2px;
 }
 
+.undorow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.undorow[hidden] {
+    display: none;
+}
+
+.btn-undo {
+    padding: 5px 10px;
+    font-size: 11.5px;
+    color: var(--green);
+    background: transparent;
+    border-color: color-mix(in srgb, var(--green) 35%, var(--line));
+}
+
+.btn-undo:hover:not(:disabled) {
+    border-color: var(--green);
+    background: color-mix(in srgb, var(--green) 8%, transparent);
+}
+
+.undo-hint {
+    color: var(--muted);
+    font-size: 11.5px;
+}
+
 .pauserow {
     display: flex;
     gap: 7px;

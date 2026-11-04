@@ -16,9 +16,12 @@
     const aghRulesEl = $('aghRules');
     const aghRulesStatus = $('aghRulesStatus');
     const refreshRulesBtn = $('refreshRulesBtn');
+    const rulesFilter = $('rulesFilter');
     const adminLink = $('adminLink');
     const status = $('status');
     const testBtn = $('testBtn');
+
+    let allAghRules = [];
 
 
     function parseLocalRules(text) {
@@ -47,12 +50,18 @@
     }
 
     function renderAghRules(rules) {
+        allAghRules = (Array.isArray(rules) ? rules : []).filter(displayableRule);
+        const query = rulesFilter ? rulesFilter.value : '';
+        const list = (typeof AGHListUtils !== 'undefined')
+            ? AGHListUtils.filterRules(allAghRules, query)
+            : allAghRules;
         aghRulesEl.textContent = '';
-        const list = (Array.isArray(rules) ? rules : []).filter(displayableRule);
         if (!list.length) {
             const empty = document.createElement('p');
             empty.className = 'rule-empty';
-            empty.textContent = 'No cosmetic rules in AdGuard Home user rules.';
+            empty.textContent = query.trim()
+                ? 'No rules match the filter.'
+                : 'No cosmetic rules in AdGuard Home user rules.';
             aghRulesEl.appendChild(empty);
             return;
         }
@@ -177,6 +186,10 @@
         cosmeticRules.value = (Array.isArray(cfg.cosmeticRules) ? cfg.cosmeticRules : []).join('\n');
         updateAdminLink();
         await loadAghRules(false);
+    }
+
+    if (rulesFilter) {
+        rulesFilter.addEventListener('input', () => renderAghRules(allAghRules));
     }
 
     form.addEventListener('submit', async (e) => {
