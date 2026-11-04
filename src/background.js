@@ -414,7 +414,9 @@ const UNDO_TTL_MS = 60 * 1000;
 const UNDO_KEY = 'lastRuleUndo';
 
 function undoStorage() {
-    return (browser.storage && browser.storage.session) ? browser.storage.session : browser.storage.local;
+    /* storage.session is not in web-ext's Firefox schema, and the 60 s
+       expiresAt check makes plain local storage safe here. */
+    return browser.storage.local;
 }
 
 async function getLastUndo() {
