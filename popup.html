@@ -36,6 +36,10 @@
                     <button class="btn btn-secondary" id="toggleClientBtn" type="button" disabled>This client only</button>
                 </div>
                 <p class="status" id="siteStatus" role="status" aria-live="polite"></p>
+                <div class="undorow" id="undoRow" hidden>
+                    <button class="btn btn-undo" id="undoBtn" type="button">Undo</button>
+                    <span class="undo-hint" id="undoHint">Rule changed</span>
+                </div>
             </section>
 
             <section class="pending" id="pendingSection" hidden>
