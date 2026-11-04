@@ -1,0 +1,79 @@
+name: Setup / usage question
+description: Ask for help configuring the extension or AdGuard Home
+title: "[Question]: "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Remove cookies, session tokens, passwords, API keys, and private
+        client IPs before submitting.** Redact anything sensitive.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to do?
+      description: A short description of your setup and the result you want.
+    validations:
+      required: true
+
+  - type: input
+    id: extension-version
+    attributes:
+      label: Extension version
+      description: Shown in the extension Settings.
+      placeholder: "1.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: firefox-version
+    attributes:
+      label: Firefox version
+      description: From `about:support` or the Firefox menu.
+      placeholder: "156.0.1"
+    validations:
+      required: true
+
+  - type: input
+    id: agh-version
+    attributes:
+      label: AdGuard Home version
+      description: Shown at the bottom of the AdGuard Home dashboard.
+      placeholder: "0.107.0"
+    validations:
+      required: true
+
+  - type: input
+    id: agh-url-type
+    attributes:
+      label: AdGuard Home URL type
+      description: Direct, reverse proxy, custom port, etc.
+      placeholder: Direct / reverse proxy / custom port
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Debian 13, Windows 11, macOS 15, ...
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: |
+        Include the exact steps, error messages, and relevant settings.
+        Remove cookies, session tokens, passwords, and private client IPs.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and documentation first.
+          required: true
+        - label: I removed cookies, session tokens, passwords, API keys, and private client IPs from this report.
+          required: true

@@ -1,0 +1,63 @@
+name: Feature request
+description: Suggest an improvement for the extension
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. AdGuard Home is DNS-level: features that
+        require TLS interception, non-browser clients, or injecting into pages
+        outside Firefox are out of scope.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what is missing or awkward today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or UI you would like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds or other approaches you have tried.
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: |
+        Does this affect DNS filtering, the browser UI, or element hiding?
+        Does it need a new AdGuard Home API endpoint? Should it work for all
+        clients or only this browser?
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Mockups, screenshots, links, or examples are welcome.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is a request for the browser extension, not AdGuard Home itself.
+          required: true
+        - label: I would be willing to test a development build if needed.
+          required: false
