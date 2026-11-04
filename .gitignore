@@ -8,3 +8,6 @@ web-ext-artifacts/
 # AMO upload state
 .amo-upload-uuid
 .web-extension-id
+
+# Superpowers plans/specs are local-only process notes.
+docs/superpowers/
