@@ -218,17 +218,7 @@ async function injectAghContentScripts(tabId, url, force) {
     aghContentTabs.add(key);
     const target = { tabId, frameIds: [0] };
     try {
-        await browser.scripting.insertCSS({ target, files: ['src/content.css'] });
-    } catch (_) {
-        /* The tab may be restricted or navigating. */
-    }
-    try {
         await browser.scripting.executeScript({ target, files: ['src/api-bridge.js'] });
-    } catch (_) {
-        /* The tab may be restricted or navigating. */
-    }
-    try {
-        await browser.scripting.executeScript({ target, files: ['src/content.js'] });
     } catch (_) {
         /* The tab may be restricted or navigating. */
     }
