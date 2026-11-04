@@ -40,6 +40,46 @@
         };
     }
 
+    function sameRuleSet(left, right) {
+        if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+        const a = left.slice().sort();
+        const b = right.slice().sort();
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
+    }
+
+    function planUndo(snapshot, currentRules, now) {
+        if (!snapshot
+            || !Array.isArray(snapshot.priorRules)
+            || !Array.isArray(snapshot.appliedRules)
+            || !Number.isFinite(Number(snapshot.expiresAt))) {
+            return { ok: false, reason: 'missing' };
+        }
+        if (Number(now) >= Number(snapshot.expiresAt)) {
+            return { ok: false, reason: 'expired' };
+        }
+        if (!sameRuleSet(currentRules, snapshot.appliedRules)) {
+            return { ok: false, reason: 'changed' };
+        }
+
+        const rules = snapshot.priorRules.slice();
+        const pending = snapshot.cancelledPending;
+        let restorePending = null;
+        if (pending && typeof pending.rule === 'string' && pending.rule) {
+            if (Number(pending.until) > Number(now)) {
+                restorePending = pending;
+            } else {
+                /* The temporary unblock would have expired during the undo
+                   window. Do not resurrect it as a permanent allow rule. */
+                const index = rules.indexOf(pending.rule);
+                if (index !== -1) rules.splice(index, 1);
+            }
+        }
+        return { ok: true, rules, restorePending };
+    }
+
     function durationLabel(ms) {
         const seconds = Math.max(1, Math.round(ms / 1000));
         if (seconds < 60) return seconds + ' seconds';
@@ -52,6 +92,7 @@
     return {
         escapeClient,
         toggleRules,
+        planUndo,
         durationLabel,
     };
 });
