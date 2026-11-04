@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Unit tests
+        run: node --test test/
+
+      - name: Syntax checks
+        run: |
+          for file in src/*.js popup.js options.js blocked.js; do
+            node --check "$file"
+          done
+
+      - name: Lint extension
+        run: >-
+          npx --yes web-ext@10.8.0 lint
+          --source-dir .
+          --ignore-files "docs/**" "web-ext-artifacts/**" "test/**" ".github/**"
+
+      - name: Build extension
+        run: >-
+          npx --yes web-ext@10.8.0 build
+          --source-dir .
+          --ignore-files "docs/**" "web-ext-artifacts/**" "test/**" ".github/**"
+          --artifacts-dir "$RUNNER_TEMP/artifacts"
+          --overwrite-dest

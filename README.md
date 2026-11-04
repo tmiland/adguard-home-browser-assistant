@@ -17,7 +17,7 @@ the browser-side control surface.
 
 > Not affiliated with AdGuard. AdGuard Home is a separate open-source project.
 
-**Status:** v1.0.0 · Firefox MV3 · AMO submitted, pending review.
+**Status:** v1.0.1 (local) · AMO 1.0.0 pending review.
 
 ## Screenshots
 
@@ -43,6 +43,8 @@ the browser-side control surface.
   `||host^$client='<client>'` / `@@||host^$client='<client>'`.
   The client comes from the latest query-log entry for the host; set one in
   Settings if auto-detection is wrong.
+- **Undo** a block or unblock for 60 seconds: the previous user-rule set is
+  restored, including a temporary-unblock timer the action cancelled.
 - **Temporary unblocks** with a live countdown and **Cancel**.
 - **Protection**: on/paused, pause for 30s / 1m / 5m / 15m, resume.
 - **Stats**: total queries and blocked count from `/control/stats`.
@@ -80,8 +82,9 @@ editable in AGH while the browser does the hiding.
 - Picked rules are saved to AGH user rules by default. If the AGH session is
   unavailable, the rule is saved locally instead. Rules saved to AGH appear under
   **Rules from AdGuard Home** in Settings, not in the local rules box.
-- Settings lists AGH cosmetic rules with **Remove** buttons and **Refresh**.
-  Removing a rule through the assistant also refreshes open tabs.
+- Settings lists AGH cosmetic rules with a **filter box**, **Remove** buttons,
+  and **Refresh**. Removing a rule through the assistant also refreshes open
+  tabs.
 - Global CSS-injection rules (`example.com#$#body { ... }`) and exceptions
   (`#@#`, `#@$#`) work.
 - Native CSS selectors (including `:has()`) are applied directly. A small
@@ -172,6 +175,9 @@ Firefox extension
   the error page, so ordinary network failures are not misreported as blocks.
 - **Temporary unblocks:** stored in `browser.storage.local`; cleanup is driven
   by `browser.alarms` so it survives MV3 event-page suspension.
+- **Undo:** the previous user-rule set is kept in `browser.storage.local` for
+  60 seconds and only restored if AGH's current rules still match what the
+  action wrote.
 - **Element hiding:** CSS is injected at user origin with
   `scripting.insertCSS`, so page CSP cannot block it.
 
@@ -180,8 +186,8 @@ Firefox extension
 - No credentials are stored.
 - No telemetry, analytics, or remote logging.
 - The AGH session cookie is used only for AGH API calls.
-- Local rules, settings, and pending temporary unblocks stay in
-  `browser.storage.local`.
+- Local rules, settings, pending temporary unblocks, and the 60-second undo
+  snapshot stay in `browser.storage.local`.
 - `<all_urls>` is required to detect failed navigations, apply element-hiding
   rules, and inject the AGH helper on the origin you configure.
 - `tabs`, `webNavigation`, `scripting`, `alarms`, `contextMenus`, and `storage`
@@ -228,7 +234,9 @@ Main files:
 
 - `src/background.js` — MV3 event page, AGH API, block page, unblocking,
   protection, stats, alarms, dynamic injection.
-- `src/rule-utils.js` — pure allow/block rule builder and duration labels.
+- `src/rule-utils.js` — pure allow/block rule builder, undo planning, duration
+  labels.
+- `src/list-utils.js` — pure rules-list filter used by Settings and the tests.
 - `src/cosmetic-rules.js` — Adblock cosmetic parser/matcher, including extended
   selectors.
 - `src/cosmetic.js` — element hiding, extended-CSS runtime, picker.
