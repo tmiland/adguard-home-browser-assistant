@@ -144,7 +144,7 @@ extensions and would override AMO's update channel.
 ## Setup
 
 1. Open **Settings** and enter the AGH web UI origin, for example
-   `https://adguard.example.com` or `http://192.168.1.1:3000`.
+   `https://adguard.example.com` or `http://192.168.1.10:3000`.
 2. Log in to that AGH UI in the same Firefox profile.
 3. The extension reuses the `agh_session` cookie. No password is stored.
 4. Optionally set a client IP/name for “this client only” actions.
