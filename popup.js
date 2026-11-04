@@ -497,7 +497,7 @@
         const aghLink = $('aghLink');
         querylogLink.hidden = !configured;
         aghLink.hidden = !configured;
-        querylogLink.href = configured ? state.aghUrl + '/#querylog' : '#';
+        querylogLink.href = configured ? state.aghUrl + '/#logs' : '#';
         aghLink.href = configured ? state.aghUrl + '/' : '#';
         autoBadge.textContent = autoBlockPage ? 'auto block page' : 'auto off';
         autoBadge.className = 'badge ' + (autoBlockPage ? 'badge-allowed' : 'badge-neutral');

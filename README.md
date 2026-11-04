@@ -17,19 +17,13 @@ the browser-side control surface.
 
 > Not affiliated with AdGuard. AdGuard Home is a separate open-source project.
 
-**Status:** v1.1.0 · Firefox MV3 · AMO 1.1.0 pending review.
+**Status:** v1.2.0 · Firefox MV3 · AMO 1.1.0 pending review.
 
 ## Screenshots
 
 | Toolbar popup | Automatic block page |
 | --- | --- |
 | <img src="docs/screenshots/popup.png" alt="AdGuard Home Browser Assistant popup showing a blocked site, unblock actions, element hiding, protection, stats, and a Donate link" width="330"> | <img src="docs/screenshots/block-page.png" alt="Automatic block page with Unblock, client-only, and temporary unblock options" width="520"> |
-
-<p align="center">
-  <img src="docs/screenshots/agh-widget.png" alt="Quick unblock widget on the AdGuard Home web interface" width="640">
-  <br>
-  <sub>Quick unblock widget on the AdGuard Home web interface.</sub>
-</p>
 
 <p align="center">
   <img src="docs/screenshots/blocklists.png" alt="Blocklist catalog page showing seven curated packs and the searchable list table" width="820">
@@ -118,19 +112,14 @@ The toolbar popup and Settings link to a dedicated **Blocklists** page backed by
 - The catalog is cached for five minutes; **Refresh catalog** forces an update and
   the page falls back to the cached copy when GitHub is unreachable.
 
-### Query-log buttons and Quick unblock
-
-- Blocked query-log rows get an **Unblock** button.
-- A floating **Quick unblock** widget is branded **AdGuard Home Browser
-  Assistant** and can be collapsed; the state is remembered.
-- It accepts a URL or domain, normalizes it, adds the allowlist rule, clears
-  AGH's cache, and polls `check_host` until the rebuild finishes.
-
-### Dynamic AGH UI integration
+### AGH API bridge
 
 There is no hardcoded AGH host. After you configure your AGH URL, the extension
-injects its AGH UI helper only on that origin. This also means it works with a
-custom hostname, reverse proxy, or port.
+injects only a small `api-bridge.js` helper on that origin, so API calls can
+reuse the existing AGH session when a direct extension request is blocked by
+SameSite or CORS. No Unblock buttons or floating panel are added to the AGH UI;
+unblocking lives in the popup and the automatic block page. This also works with
+a custom hostname, reverse proxy, or port.
 
 ## Install
 
@@ -267,7 +256,6 @@ Main files:
 - `src/cosmetic-rules.js` — Adblock cosmetic parser/matcher, including extended
   selectors.
 - `src/cosmetic.js` — element hiding, extended-CSS runtime, picker.
-- `src/content.js` — query-log buttons and Quick unblock widget.
 - `src/api-bridge.js` — same-origin AGH API bridge.
 - `popup.html|css|js` — toolbar popup.
 - `blocked.html|css|js` — automatic block page.
@@ -302,9 +290,9 @@ Main files:
 **The popup says “Setup”**
 : Open Settings and enter your AGH URL, then log in to that AGH UI.
 
-**The AGH widget or query-log buttons are missing**
-: The helper is injected only on the configured AGH origin. Reload the AGH tab
-  after saving the URL.
+**There is no Unblock button in the AGH query log**
+: That is intentional. Unblock from the extension popup or the automatic block
+  page; the AGH page only receives the API-bridge helper.
 
 **Unblock says the session expired**
 : Log in to AGH in the same Firefox profile, then retry.

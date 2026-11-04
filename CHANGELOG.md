@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 — 2026-11-04
+
+- **Removed the AGH-page Unblock UI**: the per-row buttons in the query log and
+  the floating Quick unblock widget are gone. Unblocking stays in the toolbar
+  popup and the automatic block page; only the same-origin API bridge is
+  injected into the AGH UI. This also stops the row button from covering AGH's
+  `⋮` row menu.
+- **Fixed** the popup's Query log link to use AGH's `/#logs` route.
+
 ## 1.1.0 — 2026-11-04
 
 - **Blocklist catalog page** linked from the popup and Settings: browse 7
