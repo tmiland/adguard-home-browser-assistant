@@ -17,7 +17,7 @@ the browser-side control surface.
 
 > Not affiliated with AdGuard. AdGuard Home is a separate open-source project.
 
-**Status:** v1.2.0 · Firefox MV3 · AMO 1.2.0 pending review.
+**Status:** v1.2.0 · Firefox MV3 · [AMO 1.2.0](https://addons.mozilla.org/firefox/addon/adguard-home-browser-assistant/) published.
 
 ## Screenshots
 
@@ -135,8 +135,7 @@ a custom hostname, reverse proxy, or port.
 
 ### AMO
 
-The AMO listing has been submitted and is pending review. Once approved,
-install it from:
+The AMO listing is published. Install it from:
 
 `https://addons.mozilla.org/firefox/addon/adguard-home-browser-assistant/`
 
